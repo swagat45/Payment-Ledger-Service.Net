@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PaymentLedger.Application")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cf549bacaa44e582b00098639393f72568438e81")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f04148fd41791300172dfd2f640fc0fb24b225ea")]
 [assembly: System.Reflection.AssemblyProductAttribute("PaymentLedger.Application")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PaymentLedger.Application")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

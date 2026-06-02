@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "UcXe+ANie6Q=",
+  "dgSpecHash": "g/lhSN44nVY=",
   "success": true,
-  "projectFilePath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj",
+  "projectFilePath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj",
   "expectedPackageFiles": [],
   "logs": []
 }

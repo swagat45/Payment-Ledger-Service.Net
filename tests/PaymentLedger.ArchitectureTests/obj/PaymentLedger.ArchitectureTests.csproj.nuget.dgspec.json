@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj": {}
+    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj": {}
   },
   "projects": {
-    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj": {
+    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj",
+        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj",
         "projectName": "PaymentLedger.Api",
-        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj",
+        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj",
         "packagesPath": "C:\\Users\\LENOVO\\.nuget\\packages\\",
-        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Api\\obj\\",
+        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Api\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\LENOVO\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -26,14 +26,14 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
               }
             }
           }
@@ -500,14 +500,14 @@
         }
       }
     },
-    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
+    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj",
+        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj",
         "projectName": "PaymentLedger.Application",
-        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj",
+        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj",
         "packagesPath": "C:\\Users\\LENOVO\\.nuget\\packages\\",
-        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\obj\\",
+        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\LENOVO\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -522,11 +522,11 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
               }
             }
           }
@@ -846,14 +846,14 @@
         }
       }
     },
-    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
+    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj",
+        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj",
         "projectName": "PaymentLedger.Domain",
-        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj",
+        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj",
         "packagesPath": "C:\\Users\\LENOVO\\.nuget\\packages\\",
-        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\obj\\",
+        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\LENOVO\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1179,14 +1179,14 @@
         }
       }
     },
-    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj": {
+    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj",
+        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj",
         "projectName": "PaymentLedger.Infrastructure",
-        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj",
+        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj",
         "packagesPath": "C:\\Users\\LENOVO\\.nuget\\packages\\",
-        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\obj\\",
+        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\LENOVO\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1201,14 +1201,14 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
               }
             }
           }
@@ -1532,14 +1532,14 @@
         }
       }
     },
-    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
+    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj",
+        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj",
         "projectName": "PaymentLedger.Shared",
-        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj",
+        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj",
         "packagesPath": "C:\\Users\\LENOVO\\.nuget\\packages\\",
-        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\obj\\",
+        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\LENOVO\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1865,14 +1865,14 @@
         }
       }
     },
-    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj": {
+    "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj",
+        "projectUniqueName": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj",
         "projectName": "PaymentLedger.ArchitectureTests",
-        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj",
+        "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\tests\\PaymentLedger.ArchitectureTests\\PaymentLedger.ArchitectureTests.csproj",
         "packagesPath": "C:\\Users\\LENOVO\\.nuget\\packages\\",
-        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\tests\\PaymentLedger.ArchitectureTests\\obj\\",
+        "outputPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\tests\\PaymentLedger.ArchitectureTests\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\LENOVO\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -1887,20 +1887,20 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Api\\PaymentLedger.Api.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Domain\\PaymentLedger.Domain.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Infrastructure\\PaymentLedger.Infrastructure.csproj"
               },
-              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
-                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
+              "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj": {
+                "projectPath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Shared\\PaymentLedger.Shared.csproj"
               }
             }
           }

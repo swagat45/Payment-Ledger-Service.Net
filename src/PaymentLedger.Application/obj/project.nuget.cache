@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "K059WD88pro=",
+  "dgSpecHash": "KQ3FAvtyVvg=",
   "success": true,
-  "projectFilePath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ldger Service\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj",
+  "projectFilePath": "D:\\Swagat Suman Mishra\\SWE Backend\\Payment Ledger Service.Net\\src\\PaymentLedger.Application\\PaymentLedger.Application.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\LENOVO\\.nuget\\packages\\microsoft.extensions.dependencyinjection.abstractions\\10.0.8\\microsoft.extensions.dependencyinjection.abstractions.10.0.8.nupkg.sha512"
   ],

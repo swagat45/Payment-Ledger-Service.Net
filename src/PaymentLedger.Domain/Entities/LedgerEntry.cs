@@ -20,6 +20,4 @@ public class LedgerEntry
     public decimal? BalanceAfterTransaction { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
-
-
 }

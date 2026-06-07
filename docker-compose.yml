@@ -1,0 +1,39 @@
+services:
+  paymentledger.postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: payment_ledger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d payment_ledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - paymentledger-postgres-data:/var/lib/postgresql/data
+
+  paymentledger.api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      paymentledger.postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=paymentledger.postgres;Port=5432;Database=payment_ledger;Username=postgres;Password=postgres
+      TreasuryWallet__UserEmail: treasury@paymentledger.local
+      TreasuryWallet__FullName: Payment Ledger Treasury
+      TreasuryWallet__Currencies__0: USD
+      TreasuryWallet__Currencies__1: INR
+      DisableHttpsRedirection: "true"
+    ports:
+      - "8080:8080"
+
+volumes:
+  paymentledger-postgres-data:

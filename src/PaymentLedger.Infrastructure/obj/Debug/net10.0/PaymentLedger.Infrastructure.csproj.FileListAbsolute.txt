@@ -18,3 +18,5 @@ D:\Swagat Suman Mishra\SWE Backend\Payment Ledger Service.Net\src\PaymentLedger.
 D:\Swagat Suman Mishra\SWE Backend\Payment Ledger Service.Net\src\PaymentLedger.Infrastructure\obj\Debug\net10.0\refint\PaymentLedger.Infrastructure.dll
 D:\Swagat Suman Mishra\SWE Backend\Payment Ledger Service.Net\src\PaymentLedger.Infrastructure\obj\Debug\net10.0\PaymentLedger.Infrastructure.pdb
 D:\Swagat Suman Mishra\SWE Backend\Payment Ledger Service.Net\src\PaymentLedger.Infrastructure\obj\Debug\net10.0\ref\PaymentLedger.Infrastructure.dll
+D:\Swagat Suman Mishra\SWE Backend\Payment Ledger Service.Net\src\PaymentLedger.Infrastructure\bin\Debug\net10.0\PaymentLedger.Infrastructure.runtimeconfig.json
+D:\Swagat Suman Mishra\SWE Backend\Payment Ledger Service.Net\src\PaymentLedger.Infrastructure\obj\Debug\net10.0\PaymentLedger.Infrastructure.genruntimeconfig.cache

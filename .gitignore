@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.vs/
+.idea/
+TestResults/
+*.user
+*.suo
+*.tmp
+*.swp
+.DS_Store
+docker-compose.override.yml

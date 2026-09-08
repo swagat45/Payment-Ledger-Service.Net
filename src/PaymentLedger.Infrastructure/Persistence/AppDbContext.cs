@@ -37,4 +37,32 @@ public sealed class AppDbContext : DbContext, IAppDbContext, IUnitOfWork
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         base.OnModelCreating(modelBuilder);
     }
+
+    public Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        if (Database.CurrentTransaction != null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Database.BeginTransactionAsync(cancellationToken);
+    }
+
+    public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        if (Database.CurrentTransaction != null)
+        {
+            await Database.CurrentTransaction.CommitAsync(cancellationToken);
+            await Database.CurrentTransaction.DisposeAsync();
+        }
+    }
+
+    public async Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
+    {
+        if (Database.CurrentTransaction != null)
+        {
+            await Database.CurrentTransaction.RollbackAsync(cancellationToken);
+            await Database.CurrentTransaction.DisposeAsync();
+        }
+    }
 }

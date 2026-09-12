@@ -32,4 +32,53 @@ public sealed class UserRepository : IUserRepository
     {
         return _dbContext.Users.AnyAsync(user => user.Email == email, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<User>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Users
+            .AsNoTracking()
+            .OrderByDescending(user => user.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<(IReadOnlyList<User> Users, long TotalCount)> GetPagedAsync(
+        int pageNumber,
+        int pageSize,
+        string? searchText = null,
+        PaymentLedger.Domain.Enums.UserStatus? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Users.AsNoTracking().AsQueryable();
+
+        if (status.HasValue)
+        {
+            query = query.Where(user => user.Status == status.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            var search = searchText.Trim().ToLower();
+            query = query.Where(user => user.FullName.ToLower().Contains(search) || user.Email.ToLower().Contains(search));
+        }
+
+        var totalCount = await query.LongCountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(user => user.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    public void Update(User user)
+    {
+        _dbContext.Users.Update(user);
+    }
+
+    public void Delete(User user)
+    {
+        _dbContext.Users.Remove(user);
+    }
 }

@@ -45,4 +45,14 @@ public sealed class WalletRepository : IWalletRepository
             .OrderBy(wallet => wallet.Currency)
             .ToListAsync(cancellationToken);
     }
+
+    public void Update(Wallet wallet)
+    {
+        _dbContext.Wallets.Update(wallet);
+    }
+
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Wallets.AnyAsync(wallet => wallet.Id == id, cancellationToken);
+    }
 }

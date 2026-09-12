@@ -8,4 +8,6 @@ public interface IWalletRepository
     Task<Wallet?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Wallet?> GetByUserAndCurrencyAsync(Guid userId, string currency, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Wallet>> ListByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    void Update(Wallet wallet);
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
 }

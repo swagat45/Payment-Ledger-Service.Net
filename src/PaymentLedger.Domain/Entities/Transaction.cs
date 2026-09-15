@@ -33,4 +33,121 @@ public class Transaction
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    public Transaction()
+    {
+    }
+
+    public static Transaction CreateCredit(
+        Guid sourceWalletId,
+        Guid destinationWalletId,
+        decimal amount,
+        string currency,
+        string idempotencyKey,
+        DateTimeOffset timestamp,
+        string? description = null,
+        string? metadata = null)
+    {
+        if (sourceWalletId == Guid.Empty)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Source wallet ID is required.");
+        }
+
+        if (destinationWalletId == Guid.Empty)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Destination wallet ID is required.");
+        }
+
+        if (amount <= 0)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Transaction amount must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Currency is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Idempotency key is required.");
+        }
+
+        var normalizedCurrency = currency.Trim().ToUpperInvariant();
+        var codeSuffix = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        var transactionCode = $"TXN-CR-{timestamp:yyyyMMddHHmmss}-{codeSuffix}";
+
+        return new Transaction
+        {
+            Id = Guid.NewGuid(),
+            TransactionCode = transactionCode,
+            Type = TransactionType.Credit,
+            Status = TransactionStatus.Posted,
+            SourceWalletId = sourceWalletId,
+            DestinationWalletId = destinationWalletId,
+            Amount = decimal.Round(amount, 2, MidpointRounding.ToEven),
+            Currency = normalizedCurrency,
+            IdempotencyKey = idempotencyKey.Trim(),
+            Description = description?.Trim(),
+            Metadata = metadata,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        };
+    }
+
+    public static Transaction CreateDebit(
+        Guid sourceWalletId,
+        Guid destinationWalletId,
+        decimal amount,
+        string currency,
+        string idempotencyKey,
+        DateTimeOffset timestamp,
+        string? description = null,
+        string? metadata = null)
+    {
+        if (sourceWalletId == Guid.Empty)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Source wallet ID is required.");
+        }
+
+        if (destinationWalletId == Guid.Empty)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Destination wallet ID is required.");
+        }
+
+        if (amount <= 0)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Transaction amount must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Currency is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Idempotency key is required.");
+        }
+
+        var normalizedCurrency = currency.Trim().ToUpperInvariant();
+        var codeSuffix = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        var transactionCode = $"TXN-DB-{timestamp:yyyyMMddHHmmss}-{codeSuffix}";
+
+        return new Transaction
+        {
+            Id = Guid.NewGuid(),
+            TransactionCode = transactionCode,
+            Type = TransactionType.Debit,
+            Status = TransactionStatus.Posted,
+            SourceWalletId = sourceWalletId,
+            DestinationWalletId = destinationWalletId,
+            Amount = decimal.Round(amount, 2, MidpointRounding.ToEven),
+            Currency = normalizedCurrency,
+            IdempotencyKey = idempotencyKey.Trim(),
+            Description = description?.Trim(),
+            Metadata = metadata,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        };
+    }
 }

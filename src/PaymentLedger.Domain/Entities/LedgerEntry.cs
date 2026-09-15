@@ -20,4 +20,51 @@ public class LedgerEntry
     public decimal? BalanceAfterTransaction { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    public LedgerEntry()
+    {
+    }
+
+    public static LedgerEntry Create(
+        Guid transactionId,
+        Guid walletId,
+        LedgerEntryType entryType,
+        decimal amount,
+        string currency,
+        decimal? balanceAfterTransaction,
+        DateTimeOffset timestamp)
+    {
+        if (transactionId == Guid.Empty)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Transaction ID is required.");
+        }
+
+        if (walletId == Guid.Empty)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Wallet ID is required.");
+        }
+
+        if (amount <= 0)
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Ledger entry amount must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Currency is required.");
+        }
+
+        return new LedgerEntry
+        {
+            TransactionId = transactionId,
+            WalletId = walletId,
+            EntryType = entryType,
+            Amount = decimal.Round(amount, 2, MidpointRounding.ToEven),
+            Currency = currency.Trim().ToUpperInvariant(),
+            BalanceAfterTransaction = balanceAfterTransaction.HasValue
+                ? decimal.Round(balanceAfterTransaction.Value, 2, MidpointRounding.ToEven)
+                : null,
+            CreatedAt = timestamp
+        };
+    }
 }

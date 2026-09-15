@@ -1,16 +1,20 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using PaymentLedger.Application.Abstractions.Persistence;
 using PaymentLedger.Domain.Entities;
+using PaymentLedger.Infrastructure.Options;
 
 namespace PaymentLedger.Infrastructure.Persistence.Repositories;
 
 public sealed class WalletRepository : IWalletRepository
 {
     private readonly AppDbContext _dbContext;
+    private readonly TreasuryWalletOptions _treasuryOptions;
 
-    public WalletRepository(AppDbContext dbContext)
+    public WalletRepository(AppDbContext dbContext, IOptions<TreasuryWalletOptions> treasuryOptions)
     {
         _dbContext = dbContext;
+        _treasuryOptions = treasuryOptions.Value;
     }
 
     public async Task AddAsync(Wallet wallet, CancellationToken cancellationToken = default)
@@ -54,5 +58,24 @@ public sealed class WalletRepository : IWalletRepository
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return _dbContext.Wallets.AnyAsync(wallet => wallet.Id == id, cancellationToken);
+    }
+
+    public async Task<Wallet?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Wallets
+            .FromSqlInterpolated($"SELECT * FROM wallets WHERE id = {id} FOR UPDATE")
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Wallet?> GetTreasuryWalletAsync(string currency, CancellationToken cancellationToken = default)
+    {
+        var normalizedCurrency = currency.Trim().ToUpperInvariant();
+        var treasuryEmail = _treasuryOptions.UserEmail.Trim();
+
+        return await _dbContext.Wallets
+            .FirstOrDefaultAsync(w =>
+                _dbContext.Users.Any(u => u.Id == w.UserId && u.Email == treasuryEmail)
+                && w.Currency == normalizedCurrency,
+                cancellationToken);
     }
 }

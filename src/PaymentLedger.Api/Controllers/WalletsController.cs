@@ -131,4 +131,86 @@ public class WalletsController : ControllerBase
 
         return Ok(ApiResponse<WalletDto>.Ok(wallet, "Wallet closed successfully."));
     }
+
+    [HttpPost("{id}/credit")]
+    public async Task<IActionResult> CreditWallet(
+        Guid id,
+        [FromBody] CreditWalletRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader)
+    {
+        var idempotencyKey = !string.IsNullOrWhiteSpace(idempotencyKeyHeader)
+            ? idempotencyKeyHeader
+            : request.IdempotencyKey;
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Success = false,
+                Message = "Idempotency-Key is required (either as HTTP header 'Idempotency-Key' or in request body)."
+            });
+        }
+
+        var command = new PaymentLedger.Application.Wallets.Commands.CreditWallet.CreditWalletCommand(
+            id,
+            request.Amount,
+            request.Currency,
+            idempotencyKey,
+            request.Description,
+            request.Metadata);
+
+        var transaction = await _mediator.Send(command);
+
+        return Ok(ApiResponse<PaymentLedger.Application.Transactions.Common.TransactionDto>.Ok(
+            transaction,
+            "Wallet credited successfully."));
+    }
+
+    [HttpPost("{id}/debit")]
+    public async Task<IActionResult> DebitWallet(
+        Guid id,
+        [FromBody] DebitWalletRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader)
+    {
+        var idempotencyKey = !string.IsNullOrWhiteSpace(idempotencyKeyHeader)
+            ? idempotencyKeyHeader
+            : request.IdempotencyKey;
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return BadRequest(new ErrorResponse
+            {
+                Success = false,
+                Message = "Idempotency-Key is required (either as HTTP header 'Idempotency-Key' or in request body)."
+            });
+        }
+
+        var command = new PaymentLedger.Application.Wallets.Commands.DebitWallet.DebitWalletCommand(
+            id,
+            request.Amount,
+            request.Currency,
+            idempotencyKey,
+            request.Description,
+            request.Metadata);
+
+        var transaction = await _mediator.Send(command);
+
+        return Ok(ApiResponse<PaymentLedger.Application.Transactions.Common.TransactionDto>.Ok(
+            transaction,
+            "Wallet debited successfully."));
+    }
 }
+
+public record CreditWalletRequest(
+    decimal Amount,
+    string Currency,
+    string? IdempotencyKey = null,
+    string? Description = null,
+    string? Metadata = null);
+
+public record DebitWalletRequest(
+    decimal Amount,
+    string Currency,
+    string? IdempotencyKey = null,
+    string? Description = null,
+    string? Metadata = null);

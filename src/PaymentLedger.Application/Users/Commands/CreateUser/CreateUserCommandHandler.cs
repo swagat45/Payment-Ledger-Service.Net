@@ -3,6 +3,7 @@ using PaymentLedger.Application.Abstractions.Common;
 using PaymentLedger.Application.Abstractions.Persistence;
 using PaymentLedger.Domain.Entities;
 using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.Application.Users.Commands.CreateUser;
 
@@ -26,7 +27,7 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, Guid>
     {
         if (await _userRepository.EmailExistsAsync(request.Email, cancellationToken))
         {
-            throw new DomainException("A user with this email already exists.");
+            throw new DomainException("A user with this email already exists.", ErrorCodes.UserAlreadyExists);
         }
 
         var user = User.Create(

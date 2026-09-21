@@ -1,4 +1,5 @@
 using PaymentLedger.Domain.Enums;
+using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.Domain.Entities;
 
@@ -94,12 +95,12 @@ public class Wallet
     {
         if (amount <= 0)
         {
-            throw new PaymentLedger.Domain.Exceptions.DomainException("Credit amount must be greater than zero.");
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Credit amount must be greater than zero.", ErrorCodes.InvalidAmount);
         }
 
         if (Status != WalletStatus.Active)
         {
-            throw new PaymentLedger.Domain.Exceptions.DomainException("Cannot credit an inactive wallet.");
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Cannot credit an inactive wallet.", ErrorCodes.WalletNotActive);
         }
 
         Balance += amount;
@@ -110,17 +111,17 @@ public class Wallet
     {
         if (amount <= 0)
         {
-            throw new PaymentLedger.Domain.Exceptions.DomainException("Debit amount must be greater than zero.");
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Debit amount must be greater than zero.", ErrorCodes.InvalidAmount);
         }
 
         if (Status != WalletStatus.Active)
         {
-            throw new PaymentLedger.Domain.Exceptions.DomainException("Cannot debit an inactive wallet.");
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Cannot debit an inactive wallet.", ErrorCodes.WalletNotActive);
         }
 
         if (Balance < amount)
         {
-            throw new PaymentLedger.Domain.Exceptions.DomainException("Insufficient balance to debit.");
+            throw new PaymentLedger.Domain.Exceptions.DomainException("Insufficient balance to debit.", ErrorCodes.InsufficientBalance);
         }
 
         Balance -= amount;

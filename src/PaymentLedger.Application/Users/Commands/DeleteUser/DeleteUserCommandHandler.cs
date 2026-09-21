@@ -2,6 +2,7 @@ using MediatR;
 using PaymentLedger.Application.Abstractions.Common;
 using PaymentLedger.Application.Abstractions.Persistence;
 using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.Application.Users.Commands.DeleteUser;
 
@@ -32,7 +33,7 @@ public class DeleteUserCommandHandler : IRequestHandler<DeleteUserCommand, bool>
         var wallets = await _walletRepository.ListByUserIdAsync(request.UserId, cancellationToken);
         if (wallets.Count > 0)
         {
-            throw new DomainException("Cannot delete user with associated wallets.");
+            throw new DomainException("Cannot delete user with associated wallets.", ErrorCodes.UserHasAssociatedWallets);
         }
 
         _userRepository.Delete(user);

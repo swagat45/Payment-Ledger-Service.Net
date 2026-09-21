@@ -5,6 +5,7 @@ using PaymentLedger.Application.Transactions.Common;
 using PaymentLedger.Domain.Entities;
 using PaymentLedger.Domain.Enums;
 using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Shared.Constants;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -51,7 +52,7 @@ public class CreditWalletCommandHandler : IRequestHandler<CreditWalletCommand, T
         {
             if (!string.Equals(existingIdempotency.RequestHash, requestHash, StringComparison.Ordinal))
             {
-                throw new DomainException("IDEMPOTENCY_CONFLICT: Idempotency key was previously used with a different request payload.");
+                throw new DomainException("Idempotency key was previously used with a different request payload.", ErrorCodes.IdempotencyConflict);
             }
 
             if (!string.IsNullOrWhiteSpace(existingIdempotency.ResponseBody))
@@ -63,7 +64,7 @@ public class CreditWalletCommandHandler : IRequestHandler<CreditWalletCommand, T
                 }
             }
 
-            throw new DomainException("A request with this idempotency key is currently being processed.");
+            throw new DomainException("A request with this idempotency key is currently being processed.", ErrorCodes.ConcurrencyConflict);
         }
 
         // 2. Wrap in explicit database transaction with row locking
@@ -74,28 +75,28 @@ public class CreditWalletCommandHandler : IRequestHandler<CreditWalletCommand, T
             var wallet = await _walletRepository.GetByIdForUpdateAsync(request.WalletId, cancellationToken);
             if (wallet == null)
             {
-                throw new DomainException("Wallet not found.");
+                throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
             }
 
             if (wallet.Status != WalletStatus.Active)
             {
-                throw new DomainException($"Cannot credit wallet with status '{wallet.Status}'. Only active wallets can receive funds.");
+                throw new DomainException($"Cannot credit wallet with status '{wallet.Status}'. Only active wallets can receive funds.", ErrorCodes.WalletNotActive);
             }
 
             if (!string.Equals(wallet.Currency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase))
             {
-                throw new DomainException($"Currency mismatch: wallet currency is '{wallet.Currency}', but credit currency is '{request.Currency}'.");
+                throw new DomainException($"Currency mismatch: wallet currency is '{wallet.Currency}', but credit currency is '{request.Currency}'.", ErrorCodes.CurrencyMismatch);
             }
 
             var treasuryWallet = await _walletRepository.GetTreasuryWalletAsync(wallet.Currency, cancellationToken);
             if (treasuryWallet == null)
             {
-                throw new DomainException($"Treasury wallet for currency '{wallet.Currency}' not found.");
+                throw new DomainException($"Treasury wallet for currency '{wallet.Currency}' not found.", ErrorCodes.WalletNotFound);
             }
 
             if (treasuryWallet.Status != WalletStatus.Active)
             {
-                throw new DomainException("Treasury wallet is inactive.");
+                throw new DomainException("Treasury wallet is inactive.", ErrorCodes.WalletNotActive);
             }
 
             var now = _dateTimeProvider.UtcNow;

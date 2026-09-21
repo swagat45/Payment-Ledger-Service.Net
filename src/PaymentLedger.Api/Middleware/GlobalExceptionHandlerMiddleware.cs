@@ -1,6 +1,7 @@
 using System.Text.Json;
 using PaymentLedger.Application.Abstractions.Common;
 using PaymentLedger.Application.Common.Exceptions;
+using PaymentLedger.Shared.Context;
 
 namespace PaymentLedger.Api.Middleware;
 
@@ -89,6 +90,11 @@ public sealed class GlobalExceptionHandlerMiddleware
 
     private string GetCorrelationId(HttpContext context)
     {
+        if (!string.IsNullOrWhiteSpace(CorrelationContext.Current))
+        {
+            return CorrelationContext.Current;
+        }
+
         if (!string.IsNullOrWhiteSpace(_correlationIdProvider?.CorrelationId))
         {
             return _correlationIdProvider.CorrelationId;

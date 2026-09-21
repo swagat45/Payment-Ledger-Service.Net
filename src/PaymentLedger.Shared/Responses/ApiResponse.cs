@@ -1,3 +1,5 @@
+using PaymentLedger.Shared.Context;
+
 namespace PaymentLedger.Shared.Responses;
 
 public class ApiResponse<T> : IApiResponse
@@ -8,7 +10,7 @@ public class ApiResponse<T> : IApiResponse
 
     public T? Data { get; init; }
 
-    public string? CorrelationId { get; set; }
+    public string? CorrelationId { get; set; } = CorrelationContext.Current;
 
     public static ApiResponse<T> Ok(T? data, string message = "Request completed successfully.", string? correlationId = null)
     {
@@ -17,7 +19,7 @@ public class ApiResponse<T> : IApiResponse
             Success = true,
             Message = message,
             Data = data,
-            CorrelationId = correlationId
+            CorrelationId = correlationId ?? CorrelationContext.Current
         };
     }
 }

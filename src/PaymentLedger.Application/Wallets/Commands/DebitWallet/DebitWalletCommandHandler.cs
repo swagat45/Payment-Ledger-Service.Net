@@ -5,6 +5,7 @@ using PaymentLedger.Application.Transactions.Common;
 using PaymentLedger.Domain.Entities;
 using PaymentLedger.Domain.Enums;
 using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Shared.Constants;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -51,7 +52,7 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
         {
             if (!string.Equals(existingIdempotency.RequestHash, requestHash, StringComparison.Ordinal))
             {
-                throw new DomainException("IDEMPOTENCY_CONFLICT: Idempotency key was previously used with a different request payload.");
+                throw new DomainException("Idempotency key was previously used with a different request payload.", ErrorCodes.IdempotencyConflict);
             }
 
             if (!string.IsNullOrWhiteSpace(existingIdempotency.ResponseBody))
@@ -63,7 +64,7 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
                 }
             }
 
-            throw new DomainException("A request with this idempotency key is currently being processed.");
+            throw new DomainException("A request with this idempotency key is currently being processed.", ErrorCodes.ConcurrencyConflict);
         }
 
         // 2. Wrap in explicit database transaction with row locking
@@ -74,33 +75,33 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
             var wallet = await _walletRepository.GetByIdForUpdateAsync(request.WalletId, cancellationToken);
             if (wallet == null)
             {
-                throw new DomainException("Wallet not found.");
+                throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
             }
 
             if (wallet.Status != WalletStatus.Active)
             {
-                throw new DomainException($"Cannot debit wallet with status '{wallet.Status}'. Only active wallets can perform debit.");
+                throw new DomainException($"Cannot debit wallet with status '{wallet.Status}'. Only active wallets can perform debit.", ErrorCodes.WalletNotActive);
             }
 
             if (!string.Equals(wallet.Currency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase))
             {
-                throw new DomainException($"Currency mismatch: wallet currency is '{wallet.Currency}', but debit currency is '{request.Currency}'.");
+                throw new DomainException($"Currency mismatch: wallet currency is '{wallet.Currency}', but debit currency is '{request.Currency}'.", ErrorCodes.CurrencyMismatch);
             }
 
             if (wallet.Balance < request.Amount)
             {
-                throw new DomainException("INSUFFICIENT_BALANCE: Insufficient balance to debit.");
+                throw new DomainException("Insufficient balance to debit.", ErrorCodes.InsufficientBalance);
             }
 
             var treasuryWallet = await _walletRepository.GetTreasuryWalletAsync(wallet.Currency, cancellationToken);
             if (treasuryWallet == null)
             {
-                throw new DomainException($"Treasury wallet for currency '{wallet.Currency}' not found.");
+                throw new DomainException($"Treasury wallet for currency '{wallet.Currency}' not found.", ErrorCodes.WalletNotFound);
             }
 
             if (treasuryWallet.Status != WalletStatus.Active)
             {
-                throw new DomainException("Treasury wallet is inactive.");
+                throw new DomainException("Treasury wallet is inactive.", ErrorCodes.WalletNotActive);
             }
 
             var now = _dateTimeProvider.UtcNow;

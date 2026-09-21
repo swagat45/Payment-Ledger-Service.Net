@@ -1,3 +1,5 @@
+using PaymentLedger.Shared.Context;
+
 namespace PaymentLedger.Shared.Responses;
 
 public sealed class ErrorResponse : IApiResponse
@@ -10,7 +12,7 @@ public sealed class ErrorResponse : IApiResponse
 
     public IReadOnlyList<ErrorDetail> Errors { get; init; } = Array.Empty<ErrorDetail>();
 
-    public string? CorrelationId { get; set; }
+    public string? CorrelationId { get; set; } = CorrelationContext.Current;
 
     public static ErrorResponse Create(
         string message,
@@ -22,7 +24,7 @@ public sealed class ErrorResponse : IApiResponse
             Message = message,
             Data = null,
             Errors = errors?.ToArray() ?? Array.Empty<ErrorDetail>(),
-            CorrelationId = correlationId
+            CorrelationId = correlationId ?? CorrelationContext.Current
         };
     }
 }

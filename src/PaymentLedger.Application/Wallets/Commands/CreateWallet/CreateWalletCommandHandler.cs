@@ -5,6 +5,7 @@ using PaymentLedger.Application.Wallets.Common;
 using PaymentLedger.Domain.Entities;
 using PaymentLedger.Domain.Enums;
 using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.Application.Wallets.Commands.CreateWallet;
 
@@ -32,12 +33,12 @@ public class CreateWalletCommandHandler : IRequestHandler<CreateWalletCommand, W
         var user = await _userRepository.GetByIdAsync(request.UserId, cancellationToken);
         if (user == null)
         {
-            throw new DomainException("User does not exist.");
+            throw new DomainException("User does not exist.", ErrorCodes.UserNotFound);
         }
 
         if (user.Status != UserStatus.Active)
         {
-            throw new DomainException("Cannot create a wallet for an inactive user.");
+            throw new DomainException("Cannot create a wallet for an inactive user.", ErrorCodes.UserNotActive);
         }
 
         var normalizedCurrency = request.Currency.Trim().ToUpperInvariant();
@@ -48,7 +49,7 @@ public class CreateWalletCommandHandler : IRequestHandler<CreateWalletCommand, W
 
         if (existingWallet != null)
         {
-            throw new DomainException($"A wallet with currency '{normalizedCurrency}' already exists for this user.");
+            throw new DomainException($"A wallet with currency '{normalizedCurrency}' already exists for this user.", ErrorCodes.WalletAlreadyExists);
         }
 
         var wallet = Wallet.Create(request.UserId, normalizedCurrency, _dateTimeProvider.UtcNow);

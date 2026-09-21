@@ -1,3 +1,4 @@
+using PaymentLedger.Shared.Context;
 using Serilog.Context;
 
 namespace PaymentLedger.Api.Middleware;
@@ -36,9 +37,17 @@ public sealed class CorrelationIdMiddleware
             return Task.CompletedTask;
         });
 
-        using (LogContext.PushProperty("CorrelationId", correlationId))
+        CorrelationContext.Current = correlationId;
+        try
         {
-            await _next(context);
+            using (LogContext.PushProperty("CorrelationId", correlationId))
+            {
+                await _next(context);
+            }
+        }
+        finally
+        {
+            CorrelationContext.Current = null;
         }
     }
 

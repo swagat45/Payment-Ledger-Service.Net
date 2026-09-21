@@ -49,6 +49,8 @@ public static class DependencyInjection
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<ILedgerRepository, LedgerRepository>();
         services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
+        services.AddMemoryCache();
+        services.AddScoped<IIdempotencyService, IdempotencyService>();
         services.AddScoped<TreasuryWalletSeeder>();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 

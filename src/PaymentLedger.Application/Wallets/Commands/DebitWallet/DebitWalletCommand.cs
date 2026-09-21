@@ -9,4 +9,5 @@ public record DebitWalletCommand(
     string Currency,
     string IdempotencyKey,
     string? Description = null,
-    string? Metadata = null) : IRequest<TransactionDto>;
+    string? Metadata = null,
+    string? ReferenceId = null) : IRequest<TransactionDto>;

@@ -20,5 +20,6 @@ public static class ErrorCodes
     public const string IdempotencyConflict = "IDEMPOTENCY_CONFLICT";
     public const string ValidationFailed = "VALIDATION_FAILED";
     public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
+    public const string DuplicateRequest = "DUPLICATE_REQUEST";
     public const string InternalServerError = "INTERNAL_SERVER_ERROR";
 }

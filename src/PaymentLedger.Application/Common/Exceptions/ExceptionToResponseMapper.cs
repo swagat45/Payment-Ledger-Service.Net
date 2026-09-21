@@ -89,6 +89,10 @@ public class ExceptionToResponseMapper : IExceptionToResponseMapper
         {
             statusCode = (int)HttpStatusCode.Conflict;
         }
+        else if (string.Equals(errorCode, ErrorCodes.DuplicateRequest, StringComparison.OrdinalIgnoreCase))
+        {
+            statusCode = (int)HttpStatusCode.TooManyRequests;
+        }
         else
         {
             statusCode = (int)HttpStatusCode.BadRequest;

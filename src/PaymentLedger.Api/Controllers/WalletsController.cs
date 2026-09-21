@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using PaymentLedger.Application.Abstractions.Common;
 using PaymentLedger.Application.Wallets.Commands.BlockWallet;
 using PaymentLedger.Application.Wallets.Commands.CloseWallet;
 using PaymentLedger.Application.Wallets.Commands.CreateWallet;
@@ -17,10 +18,12 @@ namespace PaymentLedger.Api.Controllers;
 public class WalletsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IIdempotencyService _idempotencyService;
 
-    public WalletsController(IMediator mediator)
+    public WalletsController(IMediator mediator, IIdempotencyService idempotencyService)
     {
         _mediator = mediator;
+        _idempotencyService = idempotencyService;
     }
 
     [HttpPost]
@@ -138,18 +141,12 @@ public class WalletsController : ControllerBase
         [FromBody] CreditWalletRequest request,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader)
     {
-        var idempotencyKey = !string.IsNullOrWhiteSpace(idempotencyKeyHeader)
-            ? idempotencyKeyHeader
-            : request.IdempotencyKey;
-
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            return BadRequest(new ErrorResponse
-            {
-                Success = false,
-                Message = "Idempotency-Key is required (either as HTTP header 'Idempotency-Key' or in request body)."
-            });
-        }
+        var idempotencyKey = _idempotencyService.ResolveKey(
+            !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : request.IdempotencyKey,
+            "credit",
+            id,
+            request.ReferenceId,
+            request.Amount);
 
         var command = new PaymentLedger.Application.Wallets.Commands.CreditWallet.CreditWalletCommand(
             id,
@@ -157,7 +154,8 @@ public class WalletsController : ControllerBase
             request.Currency,
             idempotencyKey,
             request.Description,
-            request.Metadata);
+            request.Metadata,
+            request.ReferenceId);
 
         var transaction = await _mediator.Send(command);
 
@@ -172,18 +170,12 @@ public class WalletsController : ControllerBase
         [FromBody] DebitWalletRequest request,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader)
     {
-        var idempotencyKey = !string.IsNullOrWhiteSpace(idempotencyKeyHeader)
-            ? idempotencyKeyHeader
-            : request.IdempotencyKey;
-
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-        {
-            return BadRequest(new ErrorResponse
-            {
-                Success = false,
-                Message = "Idempotency-Key is required (either as HTTP header 'Idempotency-Key' or in request body)."
-            });
-        }
+        var idempotencyKey = _idempotencyService.ResolveKey(
+            !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : request.IdempotencyKey,
+            "debit",
+            id,
+            request.ReferenceId,
+            request.Amount);
 
         var command = new PaymentLedger.Application.Wallets.Commands.DebitWallet.DebitWalletCommand(
             id,
@@ -191,7 +183,8 @@ public class WalletsController : ControllerBase
             request.Currency,
             idempotencyKey,
             request.Description,
-            request.Metadata);
+            request.Metadata,
+            request.ReferenceId);
 
         var transaction = await _mediator.Send(command);
 
@@ -205,6 +198,7 @@ public record CreditWalletRequest(
     decimal Amount,
     string Currency,
     string? IdempotencyKey = null,
+    string? ReferenceId = null,
     string? Description = null,
     string? Metadata = null);
 
@@ -212,5 +206,6 @@ public record DebitWalletRequest(
     decimal Amount,
     string Currency,
     string? IdempotencyKey = null,
+    string? ReferenceId = null,
     string? Description = null,
     string? Metadata = null);

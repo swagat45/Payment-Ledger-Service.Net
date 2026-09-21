@@ -29,7 +29,11 @@ The service implements Clean Architecture with CQRS via MediatR, FluentValidatio
 3. **Financial Transactions & Double-Entry Ledger**:
    - `POST /api/v1/wallets/{id}/credit`: Credit funds to user wallet from Treasury with balanced double-entry ledger entries.
    - `POST /api/v1/wallets/{id}/debit`: Debit funds from user wallet to Treasury with pessimistic row locking (`FOR UPDATE`) and balance checks.
-   - **Idempotency Engine**: Supports `Idempotency-Key` (header or payload) with SHA-256 request payload hashing to prevent duplicate transactions.
+   - **Centralized Idempotency Engine (`IIdempotencyService`)**:
+     - **Header-Based Idempotency**: Evaluates `Idempotency-Key` (header or payload) and performs SHA-256 payload hash validation.
+     - **Deterministic Business Keys**: Supports optional `ReferenceId` (e.g. order ID, external payment reference) constructing `"{action}:{walletId}:{referenceId}"` to guarantee zero double-spend even if client UUID generation fails.
+     - **Anti-Double-Click Guard**: Memory-cached request fingerprinting (`SHA256(action:walletId:amount)`) rejecting identical unkeyed clicks within a 3-second throttle window with HTTP 429 (`DUPLICATE_REQUEST`).
+     - **Conflict Detection**: Throws `IDEMPOTENCY_CONFLICT` (409) if a key is reused with a different payload, and `CONCURRENCY_CONFLICT` (409) if an identical request is still being processed.
 
 4. **Observability, Serilog & Correlation Tracking**:
    - **Serilog**: Structured console logging and daily rolling file logs (`logs/payment-ledger-.log`).

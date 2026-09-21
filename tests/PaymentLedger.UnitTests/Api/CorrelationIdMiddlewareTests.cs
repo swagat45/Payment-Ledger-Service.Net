@@ -95,4 +95,84 @@ public class CorrelationIdMiddlewareTests
         // Assert
         Assert.False(string.IsNullOrWhiteSpace(result));
     }
+
+    [Fact]
+    public async Task InvokeAsync_SetsAndCleansUpAmbientCorrelationContext()
+    {
+        // Arrange
+        const string expectedCorrelationId = "corr-ambient-test";
+        var context = new DefaultHttpContext();
+        context.Request.Headers[CorrelationIdMiddleware.CorrelationIdHeaderName] = expectedCorrelationId;
+
+        string? capturedAmbient = null;
+        RequestDelegate next = _ =>
+        {
+            capturedAmbient = PaymentLedger.Shared.Context.CorrelationContext.Current;
+            return Task.CompletedTask;
+        };
+
+        var middleware = new CorrelationIdMiddleware(next);
+
+        // Act
+        await middleware.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(expectedCorrelationId, capturedAmbient);
+        Assert.Null(PaymentLedger.Shared.Context.CorrelationContext.Current);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WhenNextThrows_CleansUpAmbientCorrelationContext()
+    {
+        // Arrange
+        const string expectedCorrelationId = "corr-ambient-throw-test";
+        var context = new DefaultHttpContext();
+        context.Request.Headers[CorrelationIdMiddleware.CorrelationIdHeaderName] = expectedCorrelationId;
+
+        RequestDelegate next = _ => throw new InvalidOperationException("Simulated error in pipeline");
+        var middleware = new CorrelationIdMiddleware(next);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => middleware.InvokeAsync(context));
+        Assert.Null(PaymentLedger.Shared.Context.CorrelationContext.Current);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task InvokeAsync_WithEmptyOrWhitespaceHeader_GeneratesNewValidGuid(string headerValue)
+    {
+        // Arrange
+        var context = new DefaultHttpContext();
+        context.Request.Headers[CorrelationIdMiddleware.CorrelationIdHeaderName] = headerValue;
+
+        var middleware = new CorrelationIdMiddleware(_ => Task.CompletedTask);
+
+        // Act
+        await middleware.InvokeAsync(context);
+
+        // Assert
+        var generatedId = context.Items[CorrelationIdMiddleware.CorrelationIdItemKey]?.ToString();
+        Assert.NotNull(generatedId);
+        Assert.True(Guid.TryParse(generatedId, out _));
+        Assert.NotEqual(headerValue, generatedId);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WithPaddedCorrelationId_TrimsWhitespace()
+    {
+        // Arrange
+        const string rawId = "my-custom-corr-id";
+        var context = new DefaultHttpContext();
+        context.Request.Headers[CorrelationIdMiddleware.CorrelationIdHeaderName] = $"  {rawId}  \t";
+
+        var middleware = new CorrelationIdMiddleware(_ => Task.CompletedTask);
+
+        // Act
+        await middleware.InvokeAsync(context);
+
+        // Assert
+        Assert.Equal(rawId, context.Items[CorrelationIdMiddleware.CorrelationIdItemKey]);
+        Assert.Equal(rawId, context.TraceIdentifier);
+    }
 }

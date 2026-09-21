@@ -21,6 +21,7 @@ public sealed class IdempotencyService : IIdempotencyService
     };
 
     private static readonly TimeSpan DefaultThrottleWindow = TimeSpan.FromSeconds(3);
+    private static readonly object AntiDoubleClickLock = new();
 
     private readonly IIdempotencyRepository _idempotencyRepository;
     private readonly IMemoryCache _memoryCache;
@@ -67,18 +68,21 @@ public sealed class IdempotencyService : IIdempotencyService
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(rawKey)));
         var cacheKey = $"anti-double-click:{hash}";
 
-        if (_memoryCache.TryGetValue(cacheKey, out _))
+        lock (AntiDoubleClickLock)
         {
-            _logger.LogWarning(
-                "Duplicate request detected for action '{Action}' on wallet '{WalletId}' with amount '{Amount}' within throttle window.",
-                action,
-                walletId,
-                amount);
+            if (_memoryCache.TryGetValue(cacheKey, out _))
+            {
+                _logger.LogWarning(
+                    "Duplicate request detected for action '{Action}' on wallet '{WalletId}' with amount '{Amount}' within throttle window.",
+                    action,
+                    walletId,
+                    amount);
 
-            throw new DomainException("Duplicate request detected. Please wait before retrying.", ErrorCodes.DuplicateRequest);
+                throw new DomainException("Duplicate request detected. Please wait before retrying.", ErrorCodes.DuplicateRequest);
+            }
+
+            _memoryCache.Set(cacheKey, true, duration);
         }
-
-        _memoryCache.Set(cacheKey, true, duration);
     }
 
     public string ComputeHash<T>(T payload)

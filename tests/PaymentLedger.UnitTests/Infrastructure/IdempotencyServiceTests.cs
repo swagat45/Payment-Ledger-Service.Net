@@ -261,6 +261,85 @@ public class IdempotencyServiceTests
         Assert.Equal("Completed", saved.Status);
     }
 
+    [Fact]
+    public async Task CheckAntiDoubleClick_WhenConcurrentThreadsAttemptSameOperation_AllowsOnlyOneAndRejectsOthers()
+    {
+        // Arrange
+        var service = CreateService();
+        var walletId = Guid.NewGuid();
+        const decimal amount = 150m;
+        const string action = "debit";
+
+        const int concurrencyLevel = 20;
+        var startSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var successCount = 0;
+        var duplicateCount = 0;
+
+        // Act
+        var tasks = Enumerable.Range(0, concurrencyLevel).Select(async _ =>
+        {
+            await startSignal.Task;
+            try
+            {
+                service.CheckAntiDoubleClick(walletId, amount, action, TimeSpan.FromSeconds(10));
+                Interlocked.Increment(ref successCount);
+            }
+            catch (DomainException ex) when (ex.ErrorCode == ErrorCodes.DuplicateRequest)
+            {
+                Interlocked.Increment(ref duplicateCount);
+            }
+        });
+
+        // Fire all threads simultaneously
+        var allTasks = Task.WhenAll(tasks);
+        startSignal.SetResult();
+        await allTasks;
+
+        // Assert
+        Assert.Equal(1, successCount);
+        Assert.Equal(concurrencyLevel - 1, duplicateCount);
+    }
+
+    [Fact]
+    public async Task CheckAntiDoubleClick_WhenConcurrentThreadsTargetDifferentWallets_AllowsAll()
+    {
+        // Arrange
+        var service = CreateService();
+        const int concurrencyLevel = 20;
+        var startSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var successCount = 0;
+
+        // Act
+        var tasks = Enumerable.Range(0, concurrencyLevel).Select(async _ =>
+        {
+            var walletId = Guid.NewGuid();
+            await startSignal.Task;
+            service.CheckAntiDoubleClick(walletId, 50m, "credit", TimeSpan.FromSeconds(10));
+            Interlocked.Increment(ref successCount);
+        });
+
+        var allTasks = Task.WhenAll(tasks);
+        startSignal.SetResult();
+        await allTasks;
+
+        // Assert
+        Assert.Equal(concurrencyLevel, successCount);
+    }
+
+    [Fact]
+    public void ResolveKey_WhenReferenceIdHasWhitespace_TrimsCorrectly()
+    {
+        // Arrange
+        var service = CreateService();
+        var walletId = Guid.NewGuid();
+
+        // Act
+        var result = service.ResolveKey(null, "debit", walletId, "   order-ref-999   ");
+
+        // Assert
+        Assert.Equal($"debit:{walletId:D}:order-ref-999", result);
+    }
+
     private sealed record TestDto(string Code, decimal Amount);
 
     private sealed class FakeIdempotencyRepository : IIdempotencyRepository

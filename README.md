@@ -185,6 +185,23 @@ dotnet ef migrations remove --project src/PaymentLedger.Infrastructure --startup
 
 ---
 
+## Concurrency & Data Integrity Guarantees
+
+1. **Pessimistic Row Locking (`SELECT ... FOR UPDATE`)**:
+   - Financial mutations (debits) execute inside an atomic database transaction using row-level locking on the target wallet.
+   - Under heavy concurrent debit contention against a low-balance wallet, transactions are strictly serialized:
+     - Requests exceeding remaining balance are rejected with HTTP 409 (`INSUFFICIENT_BALANCE`).
+     - The wallet balance is guaranteed to never drop below zero.
+     - Double-entry ledger entries remain fully balanced.
+
+2. **Thread-Safe Anti-Double-Click Guard**:
+   - Centralized memory-throttled anti-double-click protection synchronizes incoming concurrent requests, ensuring only a single thread can execute an identical unkeyed mutation within the 3-second throttle window, returning HTTP 429 (`DUPLICATE_REQUEST`) to parallel duplicates.
+
+3. **Concurrent Idempotency Deduplication**:
+   - Multiple parallel requests carrying the same `Idempotency-Key` serialize safely: the initial request executes the transaction while concurrent duplicates either await/receive the cached response or trigger conflict/duplicate protections, guaranteeing zero double-debit.
+
+---
+
 ## Testing & Quality Gates
 
 Run all test suites across the solution:
@@ -193,19 +210,35 @@ Run all test suites across the solution:
 dotnet test
 ```
 
-### Run Specific Test Projects
+### Test Suites
 
-- **Unit Tests** (118+ tests):
+- **Unit & Concurrency Tests** (`PaymentLedger.UnitTests` - 151 passed):
+  - Domain invariants, Money precision, Wallet state transitions, and Ledger double-entry validation.
+  - CQRS command and query handlers, FluentValidation rules.
+  - Multi-threaded concurrency simulation tests verifying `SELECT ... FOR UPDATE` row serialization, zero-negative balance invariants, and idempotency deduplication under parallel execution.
+  - `CorrelationIdMiddleware` context lifecycle and whitespace sanitization.
+  - `GlobalExceptionHandlerMiddleware` error code mapping (400, 404, 409, 429, 500) and response streaming safety.
+  - `IdempotencyService` thread synchronization, hashing, and anti-double-click multi-thread isolation.
   ```powershell
   dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
   ```
 
-- **Architecture Tests** (Clean Architecture layer enforcement):
+- **Architecture Tests** (`PaymentLedger.ArchitectureTests` - 10 passed):
+  - NetArchTest rules enforcing Clean Architecture layer isolation.
+  - `Api` does not directly depend on `Domain`.
+  - `Domain` and `Application` do not depend on `Infrastructure`, `Api`, or `Serilog`.
+  - `Controllers` do not reference Entity Framework Core or database repositories directly.
+  - All middleware classes reside strictly in `PaymentLedger.Api.Middleware`.
+  - `IIdempotencyService` implementation resides in `PaymentLedger.Infrastructure.Common`.
   ```powershell
   dotnet test tests/PaymentLedger.ArchitectureTests/PaymentLedger.ArchitectureTests.csproj
   ```
 
-- **Integration Tests**:
+- **Integration Tests** (`PaymentLedger.IntegrationTests` - 9 tests):
+  - Real PostgreSQL container tests via Testcontainers (`[DockerFact]`).
+  - True database transaction concurrency tests verifying `SELECT ... FOR UPDATE` row locking and non-negative balance enforcement under concurrent HTTP debits.
+  - Idempotency deduplication integration tests.
+  - Database schema migration, idempotent treasury seeding, and health checks.
   ```powershell
   dotnet test tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.csproj
   ```

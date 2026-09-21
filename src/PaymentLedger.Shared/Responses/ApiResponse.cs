@@ -1,6 +1,6 @@
 namespace PaymentLedger.Shared.Responses;
 
-public class ApiResponse<T>
+public class ApiResponse<T> : IApiResponse
 {
     public bool Success { get; init; }
 
@@ -8,7 +8,7 @@ public class ApiResponse<T>
 
     public T? Data { get; init; }
 
-    public string? CorrelationId { get; init; }
+    public string? CorrelationId { get; set; }
 
     public static ApiResponse<T> Ok(T? data, string message = "Request completed successfully.", string? correlationId = null)
     {

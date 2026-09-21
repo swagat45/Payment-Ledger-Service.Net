@@ -3,7 +3,9 @@ namespace PaymentLedger.Shared.Constants;
 public static class ErrorCodes
 {
     public const string UserNotFound = "USER_NOT_FOUND";
+    public const string UserNotActive = "USER_NOT_ACTIVE";
     public const string WalletNotFound = "WALLET_NOT_FOUND";
+    public const string WalletAlreadyExists = "WALLET_ALREADY_EXISTS";
     public const string WalletNotActive = "WALLET_NOT_ACTIVE";
     public const string InvalidAmount = "INVALID_AMOUNT";
     public const string InvalidCurrency = "INVALID_CURRENCY";

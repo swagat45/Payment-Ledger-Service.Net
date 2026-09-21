@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using PaymentLedger.Application.Behaviors;
+using PaymentLedger.Application.Common.Exceptions;
 
 namespace PaymentLedger.Application;
 
@@ -17,6 +18,7 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(assembly);
+        services.AddSingleton<IExceptionToResponseMapper, ExceptionToResponseMapper>();
 
         return services;
     }

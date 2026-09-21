@@ -1,6 +1,6 @@
 namespace PaymentLedger.Shared.Responses;
 
-public sealed class ErrorResponse
+public sealed class ErrorResponse : IApiResponse
 {
     public bool Success { get; init; } = false;
 
@@ -10,7 +10,7 @@ public sealed class ErrorResponse
 
     public IReadOnlyList<ErrorDetail> Errors { get; init; } = Array.Empty<ErrorDetail>();
 
-    public string? CorrelationId { get; init; }
+    public string? CorrelationId { get; set; }
 
     public static ErrorResponse Create(
         string message,

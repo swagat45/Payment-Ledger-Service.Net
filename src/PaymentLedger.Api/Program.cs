@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using PaymentLedger.Api.Extensions;
 using PaymentLedger.Api.Middleware;
-using PaymentLedger.Application;
-using PaymentLedger.Infrastructure;
-using PaymentLedger.Infrastructure.Persistence;
-using PaymentLedger.Infrastructure.Seeding;
+using PaymentLedger.Business;
+using PaymentLedger.Repository;
+using PaymentLedger.Repository.Persistence;
+using PaymentLedger.Repository.Seeding;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,8 +25,8 @@ builder.Host.UseSerilog((context, services, configuration) =>
 var disableHttpsRedirection = builder.Configuration.GetValue<bool>("DisableHttpsRedirection");
 
 builder.Services.AddApiServices();
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddBusiness();
+builder.Services.AddRepository(builder.Configuration);
 
 var app = builder.Build();
 
@@ -60,4 +60,3 @@ app.MapHealthChecks("/health");
 app.Run();
 
 public partial class Program;
-

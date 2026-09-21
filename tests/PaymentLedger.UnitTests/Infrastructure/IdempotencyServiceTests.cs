@@ -1,11 +1,12 @@
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using PaymentLedger.Application.Abstractions.Common;
-using PaymentLedger.Application.Abstractions.Persistence;
-using PaymentLedger.Domain.Entities;
-using PaymentLedger.Domain.Exceptions;
-using PaymentLedger.Infrastructure.Common;
+using PaymentLedger.Business.Common;
+using PaymentLedger.Repository.Abstractions;
+using PaymentLedger.Repository.Repositories;
+using PaymentLedger.Repository.Entities;
+using PaymentLedger.Repository.Exceptions;
+using PaymentLedger.Business.Common;
 using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.UnitTests.Infrastructure;

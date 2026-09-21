@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using PaymentLedger.Api.Common;
 using PaymentLedger.Api.Filters;
 using PaymentLedger.Api.Middleware;
-using PaymentLedger.Application.Abstractions.Common;
+using PaymentLedger.Shared.Context;
 using PaymentLedger.Shared.Responses;
 
 namespace PaymentLedger.UnitTests.Api;

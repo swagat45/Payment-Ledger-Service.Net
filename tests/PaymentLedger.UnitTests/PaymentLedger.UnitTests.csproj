@@ -19,9 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\PaymentLedger.Application\PaymentLedger.Application.csproj" />
-    <ProjectReference Include="..\..\src\PaymentLedger.Domain\PaymentLedger.Domain.csproj" />
     <ProjectReference Include="..\..\src\PaymentLedger.Api\PaymentLedger.Api.csproj" />
+    <ProjectReference Include="..\..\src\PaymentLedger.Business\PaymentLedger.Business.csproj" />
+    <ProjectReference Include="..\..\src\PaymentLedger.Repository\PaymentLedger.Repository.csproj" />
+    <ProjectReference Include="..\..\src\PaymentLedger.Shared\PaymentLedger.Shared.csproj" />
   </ItemGroup>
 
 </Project>

@@ -16,8 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PaymentLedger.Application\PaymentLedger.Application.csproj" />
-    <ProjectReference Include="..\PaymentLedger.Infrastructure\PaymentLedger.Infrastructure.csproj" />
+    <ProjectReference Include="..\PaymentLedger.Business\PaymentLedger.Business.csproj" />
+    <ProjectReference Include="..\PaymentLedger.Repository\PaymentLedger.Repository.csproj" />
     <ProjectReference Include="..\PaymentLedger.Shared\PaymentLedger.Shared.csproj" />
   </ItemGroup>
 

@@ -1,14 +1,6 @@
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using PaymentLedger.Application.Abstractions.Common;
-using PaymentLedger.Application.Wallets.Commands.BlockWallet;
-using PaymentLedger.Application.Wallets.Commands.CloseWallet;
-using PaymentLedger.Application.Wallets.Commands.CreateWallet;
-using PaymentLedger.Application.Wallets.Commands.UnblockWallet;
-using PaymentLedger.Application.Wallets.Common;
-using PaymentLedger.Application.Wallets.Queries.GetWalletBalance;
-using PaymentLedger.Application.Wallets.Queries.GetWalletById;
-using PaymentLedger.Application.Wallets.Queries.GetWalletsByUserId;
+using PaymentLedger.Business.Models;
+using PaymentLedger.Business.Services;
 using PaymentLedger.Shared.Responses;
 
 namespace PaymentLedger.Api.Controllers;
@@ -17,30 +9,27 @@ namespace PaymentLedger.Api.Controllers;
 [Route("api/v1/wallets")]
 public class WalletsController : ControllerBase
 {
-    private readonly IMediator _mediator;
-    private readonly IIdempotencyService _idempotencyService;
+    private readonly IWalletBusinessService _walletService;
 
-    public WalletsController(IMediator mediator, IIdempotencyService idempotencyService)
+    public WalletsController(IWalletBusinessService walletService)
     {
-        _mediator = mediator;
-        _idempotencyService = idempotencyService;
+        _walletService = walletService;
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateWallet([FromBody] CreateWalletCommand command)
+    public async Task<IActionResult> CreateWallet([FromBody] CreateWalletRequest request, CancellationToken ct)
     {
-        var wallet = await _mediator.Send(command);
+        var wallet = await _walletService.CreateWalletAsync(request, ct);
 
-        var response = ApiResponse<WalletDto>.Ok(wallet, "Wallet created successfully.");
+        var response = ApiResponse<WalletResponse>.Ok(wallet, "Wallet created successfully.");
 
         return CreatedAtAction(nameof(GetWalletById), new { id = wallet.WalletId }, response);
     }
 
     [HttpGet("{id}/balance")]
-    public async Task<IActionResult> GetWalletBalance(Guid id)
+    public async Task<IActionResult> GetWalletBalance(Guid id, CancellationToken ct)
     {
-        var query = new GetWalletBalanceQuery(id);
-        var balance = await _mediator.Send(query);
+        var balance = await _walletService.GetWalletBalanceAsync(id, ct);
 
         if (balance == null)
         {
@@ -51,14 +40,13 @@ public class WalletsController : ControllerBase
             });
         }
 
-        return Ok(ApiResponse<WalletBalanceDto>.Ok(balance, "Balance retrieved successfully."));
+        return Ok(ApiResponse<WalletBalanceResponse>.Ok(balance, "Balance retrieved successfully."));
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetWalletById(Guid id)
+    public async Task<IActionResult> GetWalletById(Guid id, CancellationToken ct)
     {
-        var query = new GetWalletByIdQuery(id);
-        var wallet = await _mediator.Send(query);
+        var wallet = await _walletService.GetWalletByIdAsync(id, ct);
 
         if (wallet == null)
         {
@@ -69,23 +57,21 @@ public class WalletsController : ControllerBase
             });
         }
 
-        return Ok(ApiResponse<WalletDto>.Ok(wallet, "Wallet retrieved successfully."));
+        return Ok(ApiResponse<WalletResponse>.Ok(wallet, "Wallet retrieved successfully."));
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetWalletsByUserId([FromQuery] Guid userId)
+    public async Task<IActionResult> GetWalletsByUserId([FromQuery] Guid userId, CancellationToken ct)
     {
-        var query = new GetWalletsByUserIdQuery(userId);
-        var wallets = await _mediator.Send(query);
+        var wallets = await _walletService.GetWalletsByUserIdAsync(userId, ct);
 
-        return Ok(ApiResponse<IReadOnlyCollection<WalletDto>>.Ok(wallets, "Wallets retrieved successfully."));
+        return Ok(ApiResponse<IReadOnlyCollection<WalletResponse>>.Ok(wallets, "Wallets retrieved successfully."));
     }
 
     [HttpPatch("{id}/block")]
-    public async Task<IActionResult> BlockWallet(Guid id)
+    public async Task<IActionResult> BlockWallet(Guid id, CancellationToken ct)
     {
-        var command = new BlockWalletCommand(id);
-        var wallet = await _mediator.Send(command);
+        var wallet = await _walletService.BlockWalletAsync(id, ct);
 
         if (wallet == null)
         {
@@ -96,14 +82,13 @@ public class WalletsController : ControllerBase
             });
         }
 
-        return Ok(ApiResponse<WalletDto>.Ok(wallet, "Wallet blocked successfully."));
+        return Ok(ApiResponse<WalletResponse>.Ok(wallet, "Wallet blocked successfully."));
     }
 
     [HttpPatch("{id}/unblock")]
-    public async Task<IActionResult> UnblockWallet(Guid id)
+    public async Task<IActionResult> UnblockWallet(Guid id, CancellationToken ct)
     {
-        var command = new UnblockWalletCommand(id);
-        var wallet = await _mediator.Send(command);
+        var wallet = await _walletService.UnblockWalletAsync(id, ct);
 
         if (wallet == null)
         {
@@ -114,14 +99,13 @@ public class WalletsController : ControllerBase
             });
         }
 
-        return Ok(ApiResponse<WalletDto>.Ok(wallet, "Wallet unblocked successfully."));
+        return Ok(ApiResponse<WalletResponse>.Ok(wallet, "Wallet unblocked successfully."));
     }
 
     [HttpPatch("{id}/close")]
-    public async Task<IActionResult> CloseWallet(Guid id)
+    public async Task<IActionResult> CloseWallet(Guid id, CancellationToken ct)
     {
-        var command = new CloseWalletCommand(id);
-        var wallet = await _mediator.Send(command);
+        var wallet = await _walletService.CloseWalletAsync(id, ct);
 
         if (wallet == null)
         {
@@ -132,34 +116,23 @@ public class WalletsController : ControllerBase
             });
         }
 
-        return Ok(ApiResponse<WalletDto>.Ok(wallet, "Wallet closed successfully."));
+        return Ok(ApiResponse<WalletResponse>.Ok(wallet, "Wallet closed successfully."));
     }
 
     [HttpPost("{id}/credit")]
     public async Task<IActionResult> CreditWallet(
         Guid id,
         [FromBody] CreditWalletRequest request,
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader)
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
+        CancellationToken ct)
     {
-        var idempotencyKey = _idempotencyService.ResolveKey(
-            !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : request.IdempotencyKey,
-            "credit",
+        var transaction = await _walletService.CreditWalletAsync(
             id,
-            request.ReferenceId,
-            request.Amount);
+            request,
+            idempotencyKeyHeader,
+            ct);
 
-        var command = new PaymentLedger.Application.Wallets.Commands.CreditWallet.CreditWalletCommand(
-            id,
-            request.Amount,
-            request.Currency,
-            idempotencyKey,
-            request.Description,
-            request.Metadata,
-            request.ReferenceId);
-
-        var transaction = await _mediator.Send(command);
-
-        return Ok(ApiResponse<PaymentLedger.Application.Transactions.Common.TransactionDto>.Ok(
+        return Ok(ApiResponse<TransactionResponse>.Ok(
             transaction,
             "Wallet credited successfully."));
     }
@@ -168,44 +141,17 @@ public class WalletsController : ControllerBase
     public async Task<IActionResult> DebitWallet(
         Guid id,
         [FromBody] DebitWalletRequest request,
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader)
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
+        CancellationToken ct)
     {
-        var idempotencyKey = _idempotencyService.ResolveKey(
-            !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : request.IdempotencyKey,
-            "debit",
+        var transaction = await _walletService.DebitWalletAsync(
             id,
-            request.ReferenceId,
-            request.Amount);
+            request,
+            idempotencyKeyHeader,
+            ct);
 
-        var command = new PaymentLedger.Application.Wallets.Commands.DebitWallet.DebitWalletCommand(
-            id,
-            request.Amount,
-            request.Currency,
-            idempotencyKey,
-            request.Description,
-            request.Metadata,
-            request.ReferenceId);
-
-        var transaction = await _mediator.Send(command);
-
-        return Ok(ApiResponse<PaymentLedger.Application.Transactions.Common.TransactionDto>.Ok(
+        return Ok(ApiResponse<TransactionResponse>.Ok(
             transaction,
             "Wallet debited successfully."));
     }
 }
-
-public record CreditWalletRequest(
-    decimal Amount,
-    string Currency,
-    string? IdempotencyKey = null,
-    string? ReferenceId = null,
-    string? Description = null,
-    string? Metadata = null);
-
-public record DebitWalletRequest(
-    decimal Amount,
-    string Currency,
-    string? IdempotencyKey = null,
-    string? ReferenceId = null,
-    string? Description = null,
-    string? Metadata = null);

@@ -4,8 +4,8 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using PaymentLedger.Domain.Entities;
-using PaymentLedger.Infrastructure.Persistence;
+using PaymentLedger.Repository.Entities;
+using PaymentLedger.Repository.Persistence;
 using PaymentLedger.IntegrationTests.Infrastructure;
 using PaymentLedger.Shared.Constants;
 using PaymentLedger.Shared.Responses;
@@ -97,7 +97,7 @@ public sealed class WalletConcurrencyTests : PostgreSqlIntegrationTestBase
 
             // Verify exactly 3 debit transactions were recorded for this wallet
             var debitTransactions = await dbContext.Transactions
-                .Where(t => t.SourceWalletId == walletId && t.Type == PaymentLedger.Domain.Enums.TransactionType.Debit)
+                .Where(t => t.SourceWalletId == walletId && t.Type == PaymentLedger.Repository.Enums.TransactionType.Debit)
                 .ToListAsync();
 
             debitTransactions.Should().HaveCount(3);

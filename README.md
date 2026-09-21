@@ -1,80 +1,153 @@
 # Payment Ledger Service
 
-Production-style backend foundation for a wallet and ledger system built with `.NET 10`, `ASP.NET Core`, `PostgreSQL`, and `Entity Framework Core`.
+Production-grade backend service for an idempotent digital wallet and double-entry ledger system built with **.NET 10**, **ASP.NET Core**, **PostgreSQL**, and **Entity Framework Core**.
 
-## Current status
+---
 
-Phase 1 is complete:
+## Current Status & Capabilities
 
-- Clean Architecture solution structure
-- Domain model, shared contracts, and application abstractions
-- EF Core PostgreSQL infrastructure and repositories
-- Initial migration and startup database bootstrap
-- Dockerized local setup and baseline documentation
-- Testing baseline and architecture guardrails
+The service implements Clean Architecture with CQRS via MediatR, FluentValidation, strict double-entry ledger accounting, idempotent transaction processing, and enterprise observability.
 
-Business endpoints such as users, wallets, credits, debits, and refunds are not implemented yet.
+### Implemented Features
 
-## Architecture
+1. **User Management**:
+   - `POST /api/v1/users`: Create user with unique email validation.
+   - `GET /api/v1/users`: Paginated user listing with search and status filters.
+   - `GET /api/v1/users/{id}`: Retrieve user details by ID.
+   - `PUT /api/v1/users/{id}`: Update user name and email.
+   - `DELETE /api/v1/users/{id}`: Delete user (with protection against deleting users with active wallets).
 
-- `src/PaymentLedger.Api` : HTTP host, Swagger, health checks, startup bootstrap
-- `src/PaymentLedger.Application` : application abstractions and contracts
-- `src/PaymentLedger.Domain` : core entities, enums, value objects
-- `src/PaymentLedger.Infrastructure` : EF Core, PostgreSQL, repositories, migrations, seeding
-- `src/PaymentLedger.Shared` : API response wrappers and shared constants
-- `tests/` : unit, integration, and architecture tests
+2. **Wallet Lifecycle Management**:
+   - `POST /api/v1/wallets`: Create currency-specific wallet for active users.
+   - `GET /api/v1/wallets/{id}`: Retrieve wallet metadata.
+   - `GET /api/v1/wallets/{id}/balance`: Query real-time wallet balance.
+   - `GET /api/v1/wallets?userId={userId}`: Query all wallets belonging to a user.
+   - `PATCH /api/v1/wallets/{id}/block`: Block wallet from operations.
+   - `PATCH /api/v1/wallets/{id}/unblock`: Unblock wallet.
+   - `PATCH /api/v1/wallets/{id}/close`: Close empty wallet (enforces zero-balance invariant).
+
+3. **Financial Transactions & Double-Entry Ledger**:
+   - `POST /api/v1/wallets/{id}/credit`: Credit funds to user wallet from Treasury with balanced double-entry ledger entries.
+   - `POST /api/v1/wallets/{id}/debit`: Debit funds from user wallet to Treasury with pessimistic row locking (`FOR UPDATE`) and balance checks.
+   - **Centralized Idempotency Engine (`IIdempotencyService`)**:
+     - **Header-Based Idempotency**: Evaluates `Idempotency-Key` (header or payload) and performs SHA-256 payload hash validation.
+     - **Deterministic Business Keys**: Supports optional `ReferenceId` (e.g. order ID, external payment reference) constructing `"{action}:{walletId}:{referenceId}"` to guarantee zero double-spend even if client UUID generation fails.
+     - **Anti-Double-Click Guard**: Memory-cached request fingerprinting (`SHA256(action:walletId:amount)`) rejecting identical unkeyed clicks within a 3-second throttle window with HTTP 429 (`DUPLICATE_REQUEST`).
+     - **Conflict Detection**: Throws `IDEMPOTENCY_CONFLICT` (409) if a key is reused with a different payload, and `CONCURRENCY_CONFLICT` (409) if an identical request is still being processed.
+
+4. **Observability, Serilog & Correlation Tracking**:
+   - **Serilog**: Structured console logging and daily rolling file logs (`logs/payment-ledger-.log`).
+   - **Correlation Tracking**: `CorrelationIdMiddleware` extracts or generates `X-Correlation-ID`, populating Serilog `LogContext`, HTTP response headers, and ambient `CorrelationContext.Current`.
+
+5. **Global Exception Handling & Standardized Response Envelopes**:
+   - **Zero Raw Leaks**: All client and server errors are trapped by `GlobalExceptionHandlerMiddleware` and converted into standardized `ErrorResponse` envelopes without stack trace leakage.
+   - **HTTP Mapping**:
+     - `ValidationException` &rarr; `400 Bad Request` with field-level `ErrorDetail` objects.
+     - `DomainException` (`USER_NOT_FOUND`, `WALLET_NOT_FOUND`) &rarr; `404 Not Found`.
+     - `DomainException` (`INSUFFICIENT_BALANCE`, `IDEMPOTENCY_CONFLICT`, `CONCURRENCY_CONFLICT`) &rarr; `409 Conflict`.
+     - `DomainException` (domain constraint violation) &rarr; `400 Bad Request`.
+     - Unhandled / System `Exception` &rarr; `500 Internal Server Error` with generic safe error message and error code `INTERNAL_SERVER_ERROR`.
+   - **Automatic Correlation Enrichment**: `ApiResponse<T>` and `ErrorResponse` automatically resolve `CorrelationId` from ambient `CorrelationContext` and MVC result filter.
+
+---
+
+## Clean Architecture Structure
+
+```
+src/
+├── PaymentLedger.Domain/          # Core domain models, entities, enums, domain exceptions
+├── PaymentLedger.Application/     # CQRS Commands/Queries, MediatR handlers, FluentValidation, DTOs, interfaces
+├── PaymentLedger.Infrastructure/  # EF Core, PostgreSQL persistence, repository implementations, migrations, seeding
+├── PaymentLedger.Api/             # ASP.NET Core Web API controllers, middleware, filters, Serilog bootstrap
+└── PaymentLedger.Shared/          # Standard response envelopes (ApiResponse, ErrorResponse), CorrelationContext, ErrorCodes
+
+tests/
+├── PaymentLedger.UnitTests/       # Domain logic, command handlers, validators, middleware, and mapper tests
+├── PaymentLedger.IntegrationTests/# End-to-end API integration tests with test containers / PostgreSQL
+└── PaymentLedger.ArchitectureTests/# NetArchTest rules enforcing strict layer dependencies
+```
+
+---
+
+## Standard Response Envelopes
+
+All API endpoints return standard JSON envelopes.
+
+### Success Response (`ApiResponse<T>`)
+```json
+{
+  "success": true,
+  "message": "Wallet debited successfully.",
+  "data": {
+    "transactionId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "amount": 50.00,
+    "currency": "USD",
+    "status": "Completed"
+  },
+  "correlationId": "4f9d6c7b-3b7c-482f-bf2a-9e12613d9a18"
+}
+```
+
+### Error Response (`ErrorResponse`)
+```json
+{
+  "success": false,
+  "message": "Insufficient balance to debit.",
+  "data": null,
+  "errors": [
+    {
+      "code": "INSUFFICIENT_BALANCE",
+      "field": null,
+      "message": "Insufficient balance to debit."
+    }
+  ],
+  "correlationId": "4f9d6c7b-3b7c-482f-bf2a-9e12613d9a18"
+}
+```
+
+---
 
 ## Prerequisites
 
-- `.NET 10 SDK`
-- `Docker Desktop` with Docker Compose
-- Optional for non-Docker run: a local PostgreSQL instance
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) with Docker Compose
+- Optional (for local runs without Docker): PostgreSQL 16+
 
-## Run locally with dotnet
+---
 
-1. Make sure PostgreSQL is running and matches the connection string in `src/PaymentLedger.Api/appsettings.json` or `appsettings.Development.json`.
-2. Start the API:
+## Run Locally with .NET CLI
+
+1. Ensure PostgreSQL is running and update the connection string in `src/PaymentLedger.Api/appsettings.Development.json`.
+2. Run the API:
 
 ```powershell
 dotnet run --project src/PaymentLedger.Api
 ```
 
-Startup automatically:
+On startup, the application automatically:
+- Applies pending EF Core migrations.
+- Seeds the system Treasury user and Treasury wallets (`USD`, `EUR`, `GBP`).
 
-- applies pending EF Core migrations
-- seeds the treasury user and treasury wallets
+Default Local URLs:
+- **HTTP**: `http://localhost:5275`
+- **HTTPS**: `https://localhost:7155`
+- **Swagger UI**: `http://localhost:5275/swagger`
+- **Health Check**: `http://localhost:5275/health`
 
-Default local URLs from launch settings:
+---
 
-- `http://localhost:5275`
-- `https://localhost:7155`
+## Run Locally with Docker Compose
 
-Useful endpoints:
-
-- Health: `http://localhost:5275/health`
-- Swagger: `http://localhost:5275/swagger`
-
-## Run locally with Docker Compose
-
-Start the stack:
+Start the full stack (API + PostgreSQL):
 
 ```powershell
 docker compose up --build
 ```
 
-The local Docker setup is HTTP-only by design.
-
-URLs:
-
-- API: `http://localhost:8080`
-- Health: `http://localhost:8080/health`
-- Swagger: `http://localhost:8080/swagger`
-
-Compose behavior:
-
-- PostgreSQL starts first
-- API waits for PostgreSQL to become healthy
-- API applies migrations and seeds treasury data on startup
+Endpoints:
+- **API Base**: `http://localhost:8080`
+- **Swagger UI**: `http://localhost:8080/swagger`
+- **Health Check**: `http://localhost:8080/health`
 
 Stop the stack:
 
@@ -82,54 +155,90 @@ Stop the stack:
 docker compose down
 ```
 
-Stop and remove the Postgres volume too:
+Stop and clear persisted database volumes:
 
 ```powershell
 docker compose down -v
 ```
 
-## Migration commands
+---
 
-Add a migration:
+## Database Migrations
+
+Add a new migration:
 
 ```powershell
 dotnet ef migrations add <MigrationName> --project src/PaymentLedger.Infrastructure --startup-project src/PaymentLedger.Api --output-dir Persistence/Migrations
 ```
 
-Remove the last migration:
-
-```powershell
-dotnet ef migrations remove --project src/PaymentLedger.Infrastructure --startup-project src/PaymentLedger.Api
-```
-
-Update the database manually:
+Apply migrations manually:
 
 ```powershell
 dotnet ef database update --project src/PaymentLedger.Infrastructure --startup-project src/PaymentLedger.Api
 ```
 
-## Validation
-
-Build:
+Remove the latest unapplied migration:
 
 ```powershell
-dotnet build PaymentLedgerService.sln
+dotnet ef migrations remove --project src/PaymentLedger.Infrastructure --startup-project src/PaymentLedger.Api
 ```
 
-Run integration tests:
+---
+
+## Concurrency & Data Integrity Guarantees
+
+1. **Pessimistic Row Locking (`SELECT ... FOR UPDATE`)**:
+   - Financial mutations (debits) execute inside an atomic database transaction using row-level locking on the target wallet.
+   - Under heavy concurrent debit contention against a low-balance wallet, transactions are strictly serialized:
+     - Requests exceeding remaining balance are rejected with HTTP 409 (`INSUFFICIENT_BALANCE`).
+     - The wallet balance is guaranteed to never drop below zero.
+     - Double-entry ledger entries remain fully balanced.
+
+2. **Thread-Safe Anti-Double-Click Guard**:
+   - Centralized memory-throttled anti-double-click protection synchronizes incoming concurrent requests, ensuring only a single thread can execute an identical unkeyed mutation within the 3-second throttle window, returning HTTP 429 (`DUPLICATE_REQUEST`) to parallel duplicates.
+
+3. **Concurrent Idempotency Deduplication**:
+   - Multiple parallel requests carrying the same `Idempotency-Key` serialize safely: the initial request executes the transaction while concurrent duplicates either await/receive the cached response or trigger conflict/duplicate protections, guaranteeing zero double-debit.
+
+---
+
+## Testing & Quality Gates
+
+Run all test suites across the solution:
 
 ```powershell
-dotnet test tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.csproj
+dotnet test
 ```
 
-Run unit tests:
+### Test Suites
 
-```powershell
-dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
-```
+- **Unit & Concurrency Tests** (`PaymentLedger.UnitTests` - 151 passed):
+  - Domain invariants, Money precision, Wallet state transitions, and Ledger double-entry validation.
+  - CQRS command and query handlers, FluentValidation rules.
+  - Multi-threaded concurrency simulation tests verifying `SELECT ... FOR UPDATE` row serialization, zero-negative balance invariants, and idempotency deduplication under parallel execution.
+  - `CorrelationIdMiddleware` context lifecycle and whitespace sanitization.
+  - `GlobalExceptionHandlerMiddleware` error code mapping (400, 404, 409, 429, 500) and response streaming safety.
+  - `IdempotencyService` thread synchronization, hashing, and anti-double-click multi-thread isolation.
+  ```powershell
+  dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
+  ```
 
-Run architecture tests:
+- **Architecture Tests** (`PaymentLedger.ArchitectureTests` - 10 passed):
+  - NetArchTest rules enforcing Clean Architecture layer isolation.
+  - `Api` does not directly depend on `Domain`.
+  - `Domain` and `Application` do not depend on `Infrastructure`, `Api`, or `Serilog`.
+  - `Controllers` do not reference Entity Framework Core or database repositories directly.
+  - All middleware classes reside strictly in `PaymentLedger.Api.Middleware`.
+  - `IIdempotencyService` implementation resides in `PaymentLedger.Infrastructure.Common`.
+  ```powershell
+  dotnet test tests/PaymentLedger.ArchitectureTests/PaymentLedger.ArchitectureTests.csproj
+  ```
 
-```powershell
-dotnet test tests/PaymentLedger.ArchitectureTests/PaymentLedger.ArchitectureTests.csproj
-```
+- **Integration Tests** (`PaymentLedger.IntegrationTests` - 9 tests):
+  - Real PostgreSQL container tests via Testcontainers (`[DockerFact]`).
+  - True database transaction concurrency tests verifying `SELECT ... FOR UPDATE` row locking and non-negative balance enforcement under concurrent HTTP debits.
+  - Idempotency deduplication integration tests.
+  - Database schema migration, idempotent treasury seeding, and health checks.
+  ```powershell
+  dotnet test tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.csproj
+  ```

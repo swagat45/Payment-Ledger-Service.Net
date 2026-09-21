@@ -1,6 +1,7 @@
 using PaymentLedger.Domain.Entities;
 using PaymentLedger.Domain.Enums;
 using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.UnitTests.Domain;
 
@@ -156,7 +157,8 @@ public class WalletTests
         var wallet = Wallet.Create(_userId, "USD", _now);
         wallet.Credit(50m, _now);
 
-        Assert.Throws<DomainException>(() => wallet.Debit(100m, _now));
+        var ex = Assert.Throws<DomainException>(() => wallet.Debit(100m, _now));
+        Assert.Equal(ErrorCodes.InsufficientBalance, ex.ErrorCode);
     }
 
     [Fact]

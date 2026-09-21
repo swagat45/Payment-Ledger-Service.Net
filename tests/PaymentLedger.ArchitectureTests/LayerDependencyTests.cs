@@ -70,6 +70,67 @@ public sealed class LayerDependencyTests
         AssertArchitecture(result);
     }
 
+    [Fact]
+    public void Application_ShouldNotDependOnSerilog()
+    {
+        var result = Types.InAssembly(ApplicationAssembly)
+            .ShouldNot()
+            .HaveDependencyOn("Serilog")
+            .GetResult();
+
+        AssertArchitecture(result);
+    }
+
+    [Fact]
+    public void Domain_ShouldNotDependOnSerilog()
+    {
+        var result = Types.InAssembly(DomainAssembly)
+            .ShouldNot()
+            .HaveDependencyOn("Serilog")
+            .GetResult();
+
+        AssertArchitecture(result);
+    }
+
+    [Fact]
+    public void Controllers_ShouldNotDependOnInfrastructureOrDbContext()
+    {
+        var result = Types.InAssembly(ApiAssembly)
+            .That()
+            .ResideInNamespace("PaymentLedger.Api.Controllers")
+            .ShouldNot()
+            .HaveDependencyOnAny("PaymentLedger.Infrastructure", "Microsoft.EntityFrameworkCore")
+            .GetResult();
+
+        AssertArchitecture(result);
+    }
+
+    [Fact]
+    public void Middlewares_ShouldResideInApiMiddlewareNamespace()
+    {
+        var result = Types.InAssembly(ApiAssembly)
+            .That()
+            .HaveNameEndingWith("Middleware")
+            .Should()
+            .ResideInNamespace("PaymentLedger.Api.Middleware")
+            .GetResult();
+
+        AssertArchitecture(result);
+    }
+
+    [Fact]
+    public void IdempotencyServiceImplementation_ShouldResideInInfrastructure()
+    {
+        var result = Types.InAssembly(InfrastructureAssembly)
+            .That()
+            .ImplementInterface(typeof(PaymentLedger.Application.Abstractions.Common.IIdempotencyService))
+            .Should()
+            .ResideInNamespace("PaymentLedger.Infrastructure.Common")
+            .GetResult();
+
+        AssertArchitecture(result);
+    }
+
     private static void AssertArchitecture(TestResult result)
     {
         var failingTypeNames = result.FailingTypeNames ?? [];

@@ -5,9 +5,7 @@ using PaymentLedger.Application.Transactions.Common;
 using PaymentLedger.Domain.Entities;
 using PaymentLedger.Domain.Enums;
 using PaymentLedger.Domain.Exceptions;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
+using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.Application.Wallets.Commands.DebitWallet;
 
@@ -16,7 +14,7 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
     private readonly IWalletRepository _walletRepository;
     private readonly ITransactionRepository _transactionRepository;
     private readonly ILedgerRepository _ledgerRepository;
-    private readonly IIdempotencyRepository _idempotencyRepository;
+    private readonly IIdempotencyService _idempotencyService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
 
@@ -24,14 +22,14 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
         IWalletRepository walletRepository,
         ITransactionRepository transactionRepository,
         ILedgerRepository ledgerRepository,
-        IIdempotencyRepository idempotencyRepository,
+        IIdempotencyService idempotencyService,
         IUnitOfWork unitOfWork,
         IDateTimeProvider dateTimeProvider)
     {
         _walletRepository = walletRepository;
         _transactionRepository = transactionRepository;
         _ledgerRepository = ledgerRepository;
-        _idempotencyRepository = idempotencyRepository;
+        _idempotencyService = idempotencyService;
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
     }
@@ -39,31 +37,25 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
     public async Task<TransactionDto> Handle(DebitWalletCommand request, CancellationToken cancellationToken)
     {
         var endpoint = $"/api/v1/wallets/{request.WalletId}/debit";
-        var requestHash = ComputeRequestHash(request);
+        var requestHash = _idempotencyService.ComputeHash(new
+        {
+            request.WalletId,
+            Amount = decimal.Round(request.Amount, 2),
+            Currency = request.Currency.Trim().ToUpperInvariant(),
+            Description = request.Description?.Trim(),
+            Metadata = request.Metadata?.Trim()
+        });
 
         // 1. Check existing idempotency key
-        var existingIdempotency = await _idempotencyRepository.GetByKeyAndEndpointAsync(
+        var idempotencyCheck = await _idempotencyService.CheckAsync<TransactionDto>(
             request.IdempotencyKey,
             endpoint,
+            requestHash,
             cancellationToken);
 
-        if (existingIdempotency != null)
+        if (idempotencyCheck.IsProcessed && idempotencyCheck.Result != null)
         {
-            if (!string.Equals(existingIdempotency.RequestHash, requestHash, StringComparison.Ordinal))
-            {
-                throw new DomainException("IDEMPOTENCY_CONFLICT: Idempotency key was previously used with a different request payload.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(existingIdempotency.ResponseBody))
-            {
-                var cachedResponse = JsonSerializer.Deserialize<TransactionDto>(existingIdempotency.ResponseBody);
-                if (cachedResponse != null)
-                {
-                    return cachedResponse;
-                }
-            }
-
-            throw new DomainException("A request with this idempotency key is currently being processed.");
+            return idempotencyCheck.Result;
         }
 
         // 2. Wrap in explicit database transaction with row locking
@@ -74,33 +66,33 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
             var wallet = await _walletRepository.GetByIdForUpdateAsync(request.WalletId, cancellationToken);
             if (wallet == null)
             {
-                throw new DomainException("Wallet not found.");
+                throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
             }
 
             if (wallet.Status != WalletStatus.Active)
             {
-                throw new DomainException($"Cannot debit wallet with status '{wallet.Status}'. Only active wallets can perform debit.");
+                throw new DomainException($"Cannot debit wallet with status '{wallet.Status}'. Only active wallets can perform debit.", ErrorCodes.WalletNotActive);
             }
 
             if (!string.Equals(wallet.Currency, request.Currency.Trim(), StringComparison.OrdinalIgnoreCase))
             {
-                throw new DomainException($"Currency mismatch: wallet currency is '{wallet.Currency}', but debit currency is '{request.Currency}'.");
+                throw new DomainException($"Currency mismatch: wallet currency is '{wallet.Currency}', but debit currency is '{request.Currency}'.", ErrorCodes.CurrencyMismatch);
             }
 
             if (wallet.Balance < request.Amount)
             {
-                throw new DomainException("INSUFFICIENT_BALANCE: Insufficient balance to debit.");
+                throw new DomainException("Insufficient balance to debit.", ErrorCodes.InsufficientBalance);
             }
 
             var treasuryWallet = await _walletRepository.GetTreasuryWalletAsync(wallet.Currency, cancellationToken);
             if (treasuryWallet == null)
             {
-                throw new DomainException($"Treasury wallet for currency '{wallet.Currency}' not found.");
+                throw new DomainException($"Treasury wallet for currency '{wallet.Currency}' not found.", ErrorCodes.WalletNotFound);
             }
 
             if (treasuryWallet.Status != WalletStatus.Active)
             {
-                throw new DomainException("Treasury wallet is inactive.");
+                throw new DomainException("Treasury wallet is inactive.", ErrorCodes.WalletNotActive);
             }
 
             var now = _dateTimeProvider.UtcNow;
@@ -160,18 +152,13 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
                 CreatedAt: transaction.CreatedAt);
 
             // 7. Save Idempotency record
-            var responseJson = JsonSerializer.Serialize(result);
-            var idempotencyRecord = IdempotencyRequest.Create(
-                idempotencyKey: request.IdempotencyKey,
-                endpoint: endpoint,
-                requestHash: requestHash,
-                responseBody: responseJson,
+            await _idempotencyService.SaveAsync(
+                request.IdempotencyKey,
+                endpoint,
+                requestHash,
+                result,
                 statusCode: 200,
-                status: "Completed",
-                createdAt: now,
-                expiresAt: now.AddHours(24));
-
-            await _idempotencyRepository.AddAsync(idempotencyRecord, cancellationToken);
+                cancellationToken);
 
             // 8. Commit atomic transaction
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -184,12 +171,5 @@ public class DebitWalletCommandHandler : IRequestHandler<DebitWalletCommand, Tra
             await _unitOfWork.RollbackTransactionAsync(cancellationToken);
             throw;
         }
-    }
-
-    private static string ComputeRequestHash(DebitWalletCommand request)
-    {
-        var rawPayload = $"walletId:{request.WalletId:D}|amount:{decimal.Round(request.Amount, 2):0.00}|currency:{request.Currency.Trim().ToUpperInvariant()}|description:{request.Description?.Trim()}|metadata:{request.Metadata?.Trim()}";
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawPayload));
-        return Convert.ToHexStringLower(bytes);
     }
 }

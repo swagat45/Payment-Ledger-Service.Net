@@ -1,15 +1,15 @@
+using PaymentLedger.Business;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
-using PaymentLedger.Application.Abstractions.Common;
-using PaymentLedger.Application.Abstractions.Persistence;
-using PaymentLedger.Infrastructure;
-using PaymentLedger.Infrastructure.Common;
-using PaymentLedger.Infrastructure.Options;
-using PaymentLedger.Infrastructure.Persistence;
-using PaymentLedger.Infrastructure.Persistence.Repositories;
-using PaymentLedger.Infrastructure.Seeding;
+using PaymentLedger.Repository.Abstractions;
+using PaymentLedger.Business.Common;
+using PaymentLedger.Repository;
+using PaymentLedger.Repository.Options;
+using PaymentLedger.Repository.Persistence;
+using PaymentLedger.Repository.Repositories;
+using PaymentLedger.Repository.Seeding;
 
 namespace PaymentLedger.IntegrationTests.Infrastructure;
 
@@ -21,7 +21,8 @@ public sealed class InfrastructureRegistrationTests
         var services = new ServiceCollection();
         var configuration = CreateConfiguration();
 
-        services.AddInfrastructure(configuration);
+        services.AddRepository(configuration);
+        services.AddBusiness();
 
         using var serviceProvider = services.BuildServiceProvider();
 
@@ -43,7 +44,8 @@ public sealed class InfrastructureRegistrationTests
         var services = new ServiceCollection();
         var configuration = CreateConfiguration();
 
-        services.AddInfrastructure(configuration);
+        services.AddRepository(configuration);
+        services.AddBusiness();
 
         using var serviceProvider = services.BuildServiceProvider();
 
@@ -60,7 +62,8 @@ public sealed class InfrastructureRegistrationTests
         var services = new ServiceCollection();
         var configuration = CreateConfiguration();
 
-        services.AddInfrastructure(configuration);
+        services.AddRepository(configuration);
+        services.AddBusiness();
 
         using var serviceProvider = services.BuildServiceProvider();
 

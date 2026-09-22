@@ -1,6 +1,5 @@
 using System.Text.Json;
-using PaymentLedger.Application.Abstractions.Common;
-using PaymentLedger.Application.Common.Exceptions;
+using PaymentLedger.Business.Exceptions;
 using PaymentLedger.Shared.Context;
 
 namespace PaymentLedger.Api.Middleware;

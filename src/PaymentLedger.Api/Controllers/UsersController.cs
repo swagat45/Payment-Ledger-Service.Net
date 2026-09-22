@@ -1,10 +1,6 @@
-using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using PaymentLedger.Application.Users.Commands.CreateUser;
-using PaymentLedger.Application.Users.Commands.DeleteUser;
-using PaymentLedger.Application.Users.Commands.UpdateUser;
-using PaymentLedger.Application.Users.Queries.GetUser;
-using PaymentLedger.Application.Users.Queries.GetUsers;
+using PaymentLedger.Business.Models;
+using PaymentLedger.Business.Services;
 using PaymentLedger.Shared.Responses;
 
 namespace PaymentLedger.Api.Controllers;
@@ -13,23 +9,21 @@ namespace PaymentLedger.Api.Controllers;
 [Route("api/v1/users")]
 public class UsersController : ControllerBase
 {
-    private readonly IMediator _mediator;
+    private readonly IUserBusinessService _userService;
 
-    public UsersController(IMediator mediator)
+    public UsersController(IUserBusinessService userService)
     {
-        _mediator = mediator;
+        _userService = userService;
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateUser([FromBody] CreateUserCommand command)
+    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
-        var userId = await _mediator.Send(command);
+        var user = await _userService.CreateUserAsync(request, ct);
 
-        var response = ApiResponse<object>.Ok(
-            new { UserId = userId, command.FullName, command.Email, Status = "Active" }, 
-            "User created successfully.");
+        var response = ApiResponse<UserResponse>.Ok(user, "User created successfully.");
 
-        return CreatedAtAction(nameof(GetUserById), new { id = userId }, response);
+        return CreatedAtAction(nameof(GetUserById), new { id = user.UserId }, response);
     }
 
     [HttpGet]
@@ -37,18 +31,18 @@ public class UsersController : ControllerBase
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] string? searchText = null,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        CancellationToken ct = default)
     {
-        var query = new GetUsersQuery(pageNumber, pageSize, searchText, status);
-        var response = await _mediator.Send(query);
+        var query = new GetUsersRequest(pageNumber, pageSize, searchText, status);
+        var response = await _userService.GetUsersPagedAsync(query, ct);
         return Ok(response);
     }
 
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetUserById(Guid id)
+    public async Task<IActionResult> GetUserById(Guid id, CancellationToken ct)
     {
-        var query = new GetUserQuery(id);
-        var user = await _mediator.Send(query);
+        var user = await _userService.GetUserByIdAsync(id, ct);
 
         if (user == null)
         {
@@ -59,14 +53,13 @@ public class UsersController : ControllerBase
             });
         }
 
-        return Ok(ApiResponse<UserDto>.Ok(user, "User retrieved successfully."));
+        return Ok(ApiResponse<UserResponse>.Ok(user, "User retrieved successfully."));
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
+    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken ct)
     {
-        var command = new UpdateUserCommand(id, request.FullName, request.Email);
-        var user = await _mediator.Send(command);
+        var user = await _userService.UpdateUserAsync(id, request, ct);
 
         if (user == null)
         {
@@ -77,14 +70,13 @@ public class UsersController : ControllerBase
             });
         }
 
-        return Ok(ApiResponse<UserDto>.Ok(user, "User updated successfully."));
+        return Ok(ApiResponse<UserResponse>.Ok(user, "User updated successfully."));
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteUser(Guid id)
+    public async Task<IActionResult> DeleteUser(Guid id, CancellationToken ct)
     {
-        var command = new DeleteUserCommand(id);
-        var success = await _mediator.Send(command);
+        var success = await _userService.DeleteUserAsync(id, ct);
 
         if (!success)
         {
@@ -98,5 +90,3 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { UserId = id }, "User deleted successfully."));
     }
 }
-
-public record UpdateUserRequest(string FullName, string Email);

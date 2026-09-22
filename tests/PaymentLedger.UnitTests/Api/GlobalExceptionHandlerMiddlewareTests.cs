@@ -1,10 +1,9 @@
 using System.Text.Json;
-using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using PaymentLedger.Api.Middleware;
-using PaymentLedger.Application.Common.Exceptions;
-using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Business.Exceptions;
+using PaymentLedger.Repository.Exceptions;
 using PaymentLedger.Shared.Constants;
 using PaymentLedger.Shared.Responses;
 
@@ -25,11 +24,7 @@ public class GlobalExceptionHandlerMiddlewareTests
         const string correlationId = "corr-validation-test";
         var context = CreateHttpContextWithCorrelationId(correlationId);
 
-        var failures = new List<ValidationFailure>
-        {
-            new("Amount", "Amount must be positive.")
-        };
-        RequestDelegate next = _ => throw new PaymentLedger.Application.Exceptions.ValidationException(failures);
+        RequestDelegate next = _ => throw new PaymentLedger.Business.Exceptions.ValidationException("Amount", "Amount must be positive.");
 
         var middleware = new GlobalExceptionHandlerMiddleware(
             next,
@@ -233,18 +228,18 @@ public class GlobalExceptionHandlerMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_WhenFluentValidationExceptionThrown_Returns400WithDetails()
+    public async Task InvokeAsync_WhenMultipleValidationFailuresThrown_Returns400WithDetails()
     {
         // Arrange
-        const string correlationId = "corr-fluent-val-test";
+        const string correlationId = "corr-val-test";
         var context = CreateHttpContextWithCorrelationId(correlationId);
 
-        var failures = new List<ValidationFailure>
+        var errors = new Dictionary<string, string[]>
         {
-            new("Currency", "Currency is required."),
-            new("Amount", "Amount must be greater than zero.")
+            ["Currency"] = ["Currency is required."],
+            ["Amount"] = ["Amount must be greater than zero."]
         };
-        RequestDelegate next = _ => throw new FluentValidation.ValidationException(failures);
+        RequestDelegate next = _ => throw new PaymentLedger.Business.Exceptions.ValidationException(errors);
 
         var middleware = new GlobalExceptionHandlerMiddleware(
             next,

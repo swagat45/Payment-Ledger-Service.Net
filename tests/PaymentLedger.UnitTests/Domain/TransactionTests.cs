@@ -1,6 +1,6 @@
-using PaymentLedger.Domain.Entities;
-using PaymentLedger.Domain.Enums;
-using PaymentLedger.Domain.Exceptions;
+using PaymentLedger.Repository.Entities;
+using PaymentLedger.Repository.Enums;
+using PaymentLedger.Repository.Exceptions;
 
 namespace PaymentLedger.UnitTests.Domain;
 

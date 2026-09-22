@@ -1,4 +1,4 @@
-using PaymentLedger.Domain.ValueObjects;
+using PaymentLedger.Repository.ValueObjects;
 
 namespace PaymentLedger.UnitTests.Domain;
 

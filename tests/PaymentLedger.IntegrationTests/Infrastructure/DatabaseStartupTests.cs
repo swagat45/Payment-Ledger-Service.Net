@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using PaymentLedger.Infrastructure.Persistence;
+using PaymentLedger.Repository.Persistence;
 
 namespace PaymentLedger.IntegrationTests.Infrastructure;
 

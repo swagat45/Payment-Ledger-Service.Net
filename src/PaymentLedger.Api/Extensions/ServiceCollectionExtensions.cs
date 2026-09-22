@@ -1,6 +1,6 @@
 using PaymentLedger.Api.Common;
 using PaymentLedger.Api.Filters;
-using PaymentLedger.Application.Abstractions.Common;
+using PaymentLedger.Shared.Context;
 
 namespace PaymentLedger.Api.Extensions;
 

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using PaymentLedger.Application.Abstractions.Common;
+using PaymentLedger.Shared.Context;
 using PaymentLedger.Shared.Responses;
 
 namespace PaymentLedger.Api.Filters;

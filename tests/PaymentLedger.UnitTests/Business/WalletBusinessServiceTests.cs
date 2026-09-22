@@ -1,0 +1,371 @@
+using PaymentLedger.Business.Common;
+using PaymentLedger.Business.Exceptions;
+using PaymentLedger.Business.Models;
+using PaymentLedger.Business.Services;
+using PaymentLedger.Repository.Abstractions;
+using PaymentLedger.Repository.Entities;
+using PaymentLedger.Repository.Enums;
+using PaymentLedger.Repository.Exceptions;
+using PaymentLedger.Repository.Repositories;
+using PaymentLedger.Shared.Constants;
+
+namespace PaymentLedger.UnitTests.Business;
+
+public class WalletBusinessServiceTests
+{
+    private readonly FakeWalletRepository _walletRepository = new();
+    private readonly FakeUserRepository _userRepository = new();
+    private readonly FakeTransactionRepository _transactionRepository = new();
+    private readonly FakeLedgerRepository _ledgerRepository = new();
+    private readonly FakeIdempotencyService _idempotencyService = new();
+    private readonly FakeUnitOfWork _unitOfWork = new();
+    private readonly FakeDateTimeProvider _dateTimeProvider = new(DateTimeOffset.UtcNow);
+
+    private WalletBusinessService CreateService() =>
+        new(
+            _walletRepository,
+            _userRepository,
+            _transactionRepository,
+            _ledgerRepository,
+            _idempotencyService,
+            _unitOfWork,
+            _dateTimeProvider);
+
+    [Fact]
+    public async Task CreateWalletAsync_WithValidData_CreatesWallet()
+    {
+        var service = CreateService();
+        var user = User.Create("Alice", "alice@example.com", _dateTimeProvider.UtcNow);
+        await _userRepository.AddAsync(user);
+
+        var request = new CreateWalletRequest(user.Id, "USD");
+        var response = await service.CreateWalletAsync(request);
+
+        Assert.NotEqual(Guid.Empty, response.WalletId);
+        Assert.Equal(user.Id, response.UserId);
+        Assert.Equal("USD", response.Currency);
+        Assert.Equal(0m, response.Balance);
+        Assert.Equal("Active", response.Status);
+        Assert.True(_unitOfWork.ChangesSaved);
+    }
+
+    [Fact]
+    public async Task CreateWalletAsync_WhenUserNotFound_ThrowsDomainException()
+    {
+        var service = CreateService();
+        var request = new CreateWalletRequest(Guid.NewGuid(), "USD");
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() => service.CreateWalletAsync(request));
+        Assert.Equal(ErrorCodes.UserNotFound, ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task CreateWalletAsync_WhenDuplicateCurrencyForUser_ThrowsDomainException()
+    {
+        var service = CreateService();
+        var user = User.Create("Alice", "alice@example.com", _dateTimeProvider.UtcNow);
+        await _userRepository.AddAsync(user);
+
+        var existingWallet = Wallet.Create(user.Id, "USD", _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(existingWallet);
+
+        var request = new CreateWalletRequest(user.Id, "USD");
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() => service.CreateWalletAsync(request));
+        Assert.Equal(ErrorCodes.WalletAlreadyExists, ex.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("US")]
+    [InlineData("USDT")]
+    [InlineData("123")]
+    public async Task CreateWalletAsync_WithInvalidCurrency_ThrowsValidationException(string currency)
+    {
+        var service = CreateService();
+        var request = new CreateWalletRequest(Guid.NewGuid(), currency);
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateWalletAsync(request));
+    }
+
+    [Fact]
+    public async Task GetWalletBalanceAsync_WhenWalletExists_ReturnsBalance()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Credit(150m, _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var response = await service.GetWalletBalanceAsync(wallet.Id);
+
+        Assert.NotNull(response);
+        Assert.Equal(150m, response.AvailableBalance);
+        Assert.Equal("USD", response.Currency);
+    }
+
+    [Fact]
+    public async Task BlockWalletAsync_BlocksWallet()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var response = await service.BlockWalletAsync(wallet.Id);
+
+        Assert.NotNull(response);
+        Assert.Equal("Blocked", response.Status);
+    }
+
+    [Fact]
+    public async Task CloseWalletAsync_WhenBalanceNonZero_ThrowsDomainException()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Credit(50m, _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        await Assert.ThrowsAsync<DomainException>(() => service.CloseWalletAsync(wallet.Id));
+    }
+
+    [Fact]
+    public async Task CreditWalletAsync_WhenIdempotencyCached_ReturnsCached()
+    {
+        var service = CreateService();
+        var walletId = Guid.NewGuid();
+        var cached = new TransactionResponse(
+            Guid.NewGuid(), "TX-CACHED", "Credit", "Posted",
+            Guid.NewGuid(), walletId, 100m, "USD", "idem-key", null, null, 100m, _dateTimeProvider.UtcNow);
+
+        _idempotencyService.NextCheckResult = IdempotencyCheckResult<TransactionResponse>.Processed(cached);
+
+        var response = await service.CreditWalletAsync(walletId, new CreditWalletRequest(100m, "USD", "idem-key"), null);
+
+        Assert.Equal("TX-CACHED", response.TransactionCode);
+        Assert.False(_unitOfWork.TransactionBegun);
+    }
+
+    [Fact]
+    public async Task CreditWalletAsync_WithValidRequest_CreditsAndCreatesDoubleEntry()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var treasury = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        _walletRepository.SetTreasuryWallet("USD", treasury);
+
+        var request = new CreditWalletRequest(100m, "USD", "credit-key-1");
+        var response = await service.CreditWalletAsync(wallet.Id, request, null);
+
+        Assert.Equal(100m, response.Amount);
+        Assert.Equal(100m, wallet.Balance);
+        Assert.Equal(100m, response.BalanceAfterTransaction);
+        Assert.True(_unitOfWork.TransactionCommitted);
+        Assert.Single(_transactionRepository.Transactions);
+        Assert.Equal(2, _ledgerRepository.Entries.Count);
+    }
+
+    [Fact]
+    public async Task DebitWalletAsync_WhenInsufficientBalance_ThrowsDomainException()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Credit(50m, _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var treasury = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        _walletRepository.SetTreasuryWallet("USD", treasury);
+
+        var request = new DebitWalletRequest(100m, "USD", "debit-key-1");
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() => service.DebitWalletAsync(wallet.Id, request, null));
+        Assert.Equal(ErrorCodes.InsufficientBalance, ex.ErrorCode);
+        Assert.True(_unitOfWork.TransactionRolledBack);
+    }
+
+    [Fact]
+    public async Task DebitWalletAsync_WithSufficientBalance_DebitsAndCreatesDoubleEntry()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Credit(100m, _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var treasury = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        _walletRepository.SetTreasuryWallet("USD", treasury);
+
+        var request = new DebitWalletRequest(40m, "USD", "debit-key-2");
+        var response = await service.DebitWalletAsync(wallet.Id, request, null);
+
+        Assert.Equal(40m, response.Amount);
+        Assert.Equal(60m, wallet.Balance);
+        Assert.Equal(60m, response.BalanceAfterTransaction);
+        Assert.True(_unitOfWork.TransactionCommitted);
+        Assert.Single(_transactionRepository.Transactions);
+        Assert.Equal(2, _ledgerRepository.Entries.Count);
+    }
+
+    #region Fakes
+
+    private sealed class FakeUserRepository : IUserRepository
+    {
+        private readonly List<User> _users = new();
+
+        public Task AddAsync(User user, CancellationToken ct = default)
+        {
+            _users.Add(user);
+            return Task.CompletedTask;
+        }
+
+        public Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+            Task.FromResult(_users.FirstOrDefault(u => u.Id == id));
+
+        public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default) =>
+            Task.FromResult(_users.FirstOrDefault(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase)));
+
+        public Task<bool> EmailExistsAsync(string email, CancellationToken ct = default) =>
+            Task.FromResult(_users.Any(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase)));
+
+        public Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<User>>(_users);
+
+        public Task<(IReadOnlyList<User> Users, long TotalCount)> GetPagedAsync(
+            int pageNumber, int pageSize, string? searchText = null, UserStatus? status = null, CancellationToken ct = default) =>
+            Task.FromResult(((IReadOnlyList<User>)_users, (long)_users.Count));
+
+        public void Update(User user) { }
+        public void Delete(User user) => _users.Remove(user);
+    }
+
+    private sealed class FakeWalletRepository : IWalletRepository
+    {
+        private readonly Dictionary<Guid, Wallet> _wallets = new();
+        private readonly Dictionary<string, Wallet> _treasuries = new();
+
+        public void SetTreasuryWallet(string currency, Wallet wallet) => _treasuries[currency] = wallet;
+
+        public Task AddAsync(Wallet wallet, CancellationToken ct = default)
+        {
+            _wallets[wallet.Id] = wallet;
+            return Task.CompletedTask;
+        }
+
+        public Task<Wallet?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        {
+            _wallets.TryGetValue(id, out var w);
+            return Task.FromResult(w);
+        }
+
+        public Task<Wallet?> GetByIdForUpdateAsync(Guid id, CancellationToken ct = default) =>
+            GetByIdAsync(id, ct);
+
+        public Task<Wallet?> GetByUserAndCurrencyAsync(Guid userId, string currency, CancellationToken ct = default) =>
+            Task.FromResult(_wallets.Values.FirstOrDefault(w => w.UserId == userId && w.Currency == currency));
+
+        public Task<IReadOnlyCollection<Wallet>> ListByUserIdAsync(Guid userId, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyCollection<Wallet>>(_wallets.Values.Where(w => w.UserId == userId).ToList());
+
+        public Task<Wallet?> GetTreasuryWalletAsync(string currency, CancellationToken ct = default)
+        {
+            _treasuries.TryGetValue(currency, out var tw);
+            return Task.FromResult(tw);
+        }
+
+        public Task<bool> ExistsAsync(Guid id, CancellationToken ct = default) =>
+            Task.FromResult(_wallets.ContainsKey(id));
+
+        public void Update(Wallet wallet) { }
+    }
+
+    private sealed class FakeTransactionRepository : ITransactionRepository
+    {
+        public List<Transaction> Transactions { get; } = new();
+
+        public Task AddAsync(Transaction transaction, CancellationToken ct = default)
+        {
+            Transactions.Add(transaction);
+            return Task.CompletedTask;
+        }
+
+        public Task<Transaction?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+            Task.FromResult(Transactions.FirstOrDefault(t => t.Id == id));
+
+        public Task<Transaction?> GetByIdempotencyKeyAsync(string key, CancellationToken ct = default) =>
+            Task.FromResult(Transactions.FirstOrDefault(t => t.IdempotencyKey == key));
+
+        public Task<IReadOnlyCollection<Transaction>> ListByWalletIdAsync(Guid walletId, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyCollection<Transaction>>(Transactions.Where(t => t.SourceWalletId == walletId || t.DestinationWalletId == walletId).ToList());
+    }
+
+    private sealed class FakeLedgerRepository : ILedgerRepository
+    {
+        public List<LedgerEntry> Entries { get; } = new();
+
+        public Task AddRangeAsync(IEnumerable<LedgerEntry> entries, CancellationToken ct = default)
+        {
+            Entries.AddRange(entries);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyCollection<LedgerEntry>> GetByTransactionIdAsync(Guid transactionId, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyCollection<LedgerEntry>>(Entries.Where(e => e.TransactionId == transactionId).ToList());
+    }
+
+    private sealed class FakeIdempotencyService : IIdempotencyService
+    {
+        public IdempotencyCheckResult<TransactionResponse>? NextCheckResult { get; set; }
+
+        public string ResolveKey(string? headerKey, string action, Guid walletId, string? referenceId, decimal? amount = null) =>
+            !string.IsNullOrWhiteSpace(headerKey) ? headerKey : $"key-{walletId}";
+
+        public void CheckAntiDoubleClick(Guid walletId, decimal amount, string action, TimeSpan? window = null) { }
+
+        public string ComputeHash<T>(T payload) => "fake-hash";
+
+        public Task<IdempotencyCheckResult<TResult>> CheckAsync<TResult>(string key, string endpoint, string hash, CancellationToken ct) =>
+            Task.FromResult((IdempotencyCheckResult<TResult>?)(object?)NextCheckResult ?? IdempotencyCheckResult<TResult>.None());
+
+        public Task SaveAsync<TResult>(string key, string endpoint, string hash, TResult response, int statusCode, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class FakeUnitOfWork : IUnitOfWork
+    {
+        public bool ChangesSaved { get; private set; }
+        public bool TransactionBegun { get; private set; }
+        public bool TransactionCommitted { get; private set; }
+        public bool TransactionRolledBack { get; private set; }
+
+        public Task<int> SaveChangesAsync(CancellationToken ct = default)
+        {
+            ChangesSaved = true;
+            return Task.FromResult(1);
+        }
+
+        public Task BeginTransactionAsync(CancellationToken ct = default)
+        {
+            TransactionBegun = true;
+            return Task.CompletedTask;
+        }
+
+        public Task CommitTransactionAsync(CancellationToken ct = default)
+        {
+            TransactionCommitted = true;
+            return Task.CompletedTask;
+        }
+
+        public Task RollbackTransactionAsync(CancellationToken ct = default)
+        {
+            TransactionRolledBack = true;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeDateTimeProvider : IDateTimeProvider
+    {
+        public DateTimeOffset UtcNow { get; }
+        public FakeDateTimeProvider(DateTimeOffset utcNow) => UtcNow = utcNow;
+    }
+
+    #endregion
+}

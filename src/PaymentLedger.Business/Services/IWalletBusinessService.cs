@@ -30,3 +30,8 @@ public interface IWalletBusinessService
         string? idempotencyKeyHeader,
         CancellationToken ct = default);
 }
+
+// EVA-style naming alias
+public interface IWalletBusiness : IWalletBusinessService
+{
+}

@@ -10,7 +10,7 @@ using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.Business.Services;
 
-public class WalletBusinessService : IWalletBusinessService
+public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
 {
     private readonly IWalletRepository _walletRepository;
     private readonly IUserRepository _userRepository;

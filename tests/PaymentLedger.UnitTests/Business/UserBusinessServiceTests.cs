@@ -95,6 +95,7 @@ public class UserBusinessServiceTests
 
         var result = await service.GetUsersPagedAsync(new GetUsersRequest(1, 10));
 
+        Assert.NotNull(result.Data);
         Assert.Equal(5, result.Data.Count);
         Assert.Equal(5, result.TotalCount);
     }

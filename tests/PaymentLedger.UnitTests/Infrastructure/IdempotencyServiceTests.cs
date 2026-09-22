@@ -6,7 +6,6 @@ using PaymentLedger.Repository.Abstractions;
 using PaymentLedger.Repository.Repositories;
 using PaymentLedger.Repository.Entities;
 using PaymentLedger.Repository.Exceptions;
-using PaymentLedger.Business.Common;
 using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.UnitTests.Infrastructure;

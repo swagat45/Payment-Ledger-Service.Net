@@ -11,7 +11,7 @@ using ValidationException = PaymentLedger.Business.Exceptions.ValidationExceptio
 
 namespace PaymentLedger.Business.Services;
 
-public class UserBusinessService : IUserBusinessService
+public class UserBusinessService : IUserBusiness, IUserBusinessService
 {
     private static readonly EmailAddressAttribute EmailValidator = new();
 

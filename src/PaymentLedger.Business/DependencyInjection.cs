@@ -13,8 +13,15 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
-        services.AddScoped<IUserBusinessService, UserBusinessService>();
-        services.AddScoped<IWalletBusinessService, WalletBusinessService>();
+        
+        services.AddScoped<UserBusinessService>();
+        services.AddScoped<IUserBusinessService>(sp => sp.GetRequiredService<UserBusinessService>());
+        services.AddScoped<IUserBusiness>(sp => sp.GetRequiredService<UserBusinessService>());
+
+        services.AddScoped<WalletBusinessService>();
+        services.AddScoped<IWalletBusinessService>(sp => sp.GetRequiredService<WalletBusinessService>());
+        services.AddScoped<IWalletBusiness>(sp => sp.GetRequiredService<WalletBusinessService>());
+
         services.AddSingleton<IExceptionToResponseMapper, ExceptionToResponseMapper>();
 
         return services;

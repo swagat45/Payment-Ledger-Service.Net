@@ -15,3 +15,8 @@ public interface IUserBusinessService
 
     Task<bool> DeleteUserAsync(Guid id, CancellationToken ct = default);
 }
+
+// EVA-style naming alias
+public interface IUserBusiness : IUserBusinessService
+{
+}

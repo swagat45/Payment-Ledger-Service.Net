@@ -97,6 +97,25 @@ public class ExceptionToResponseMapperTests
         Assert.Equal(errorCode, response.Errors[0].Code);
     }
 
+    [Theory]
+    [InlineData(ErrorCodes.TransactionNotRefundable)]
+    [InlineData(ErrorCodes.RefundAmountExceeded)]
+    [InlineData(ErrorCodes.CurrencyMismatch)]
+    public void Map_DomainException_WithRefundInvariantErrors_ReturnsBadRequest(string errorCode)
+    {
+        // Arrange
+        var exception = new DomainException("Refund validation error.", errorCode);
+
+        // Act
+        var (statusCode, response) = _mapper.Map(exception, TestCorrelationId);
+
+        // Assert
+        Assert.Equal(400, statusCode);
+        Assert.False(response.Success);
+        Assert.Equal(TestCorrelationId, response.CorrelationId);
+        Assert.Equal(errorCode, response.Errors[0].Code);
+    }
+
     [Fact]
     public void Map_DomainException_WithOtherBusinessErrors_ReturnsBadRequest()
     {

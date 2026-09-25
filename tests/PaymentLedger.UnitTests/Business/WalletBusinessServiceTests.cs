@@ -295,6 +295,42 @@ public class WalletBusinessServiceTests
 
         public Task<IReadOnlyCollection<Transaction>> ListByWalletIdAsync(Guid walletId, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyCollection<Transaction>>(Transactions.Where(t => t.SourceWalletId == walletId || t.DestinationWalletId == walletId).ToList());
+
+        public Task<(Transaction Transaction, IReadOnlyCollection<LedgerEntry> Entries, Transaction? ReferenceTransaction)?> GetByIdWithEntriesAsync(
+            Guid id,
+            CancellationToken ct = default)
+        {
+            var tx = Transactions.FirstOrDefault(t => t.Id == id);
+            if (tx == null) return Task.FromResult<(Transaction Transaction, IReadOnlyCollection<LedgerEntry> Entries, Transaction? ReferenceTransaction)?>(null);
+            var refTx = tx.ReferenceTransactionId.HasValue ? Transactions.FirstOrDefault(t => t.Id == tx.ReferenceTransactionId.Value) : null;
+            return Task.FromResult<(Transaction Transaction, IReadOnlyCollection<LedgerEntry> Entries, Transaction? ReferenceTransaction)?>((tx, (IReadOnlyCollection<LedgerEntry>)Array.Empty<LedgerEntry>(), refTx));
+        }
+
+        public Task<IReadOnlyCollection<Transaction>> GetRefundsForTransactionAsync(Guid originalTransactionId, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyCollection<Transaction>>(Transactions.Where(t => t.ReferenceTransactionId == originalTransactionId && t.Status == TransactionStatus.Posted).ToList());
+
+        public Task<decimal> GetTotalRefundedAmountAsync(Guid originalTransactionId, CancellationToken ct = default) =>
+            Task.FromResult(Transactions.Where(t => t.ReferenceTransactionId == originalTransactionId && t.Type == TransactionType.Refund && t.Status != TransactionStatus.Failed).Sum(t => t.Amount));
+
+        public Task<(IReadOnlyCollection<Transaction> Items, long TotalCount)> GetPagedByWalletIdAsync(
+            Guid walletId,
+            int pageNumber,
+            int pageSize,
+            TransactionType? type = null,
+            TransactionStatus? status = null,
+            DateTimeOffset? fromDate = null,
+            DateTimeOffset? toDate = null,
+            CancellationToken ct = default)
+        {
+            var query = Transactions.Where(t => t.SourceWalletId == walletId || t.DestinationWalletId == walletId);
+            if (type.HasValue) query = query.Where(t => t.Type == type.Value);
+            if (status.HasValue) query = query.Where(t => t.Status == status.Value);
+            if (fromDate.HasValue) query = query.Where(t => t.CreatedAt >= fromDate.Value);
+            if (toDate.HasValue) query = query.Where(t => t.CreatedAt <= toDate.Value);
+            var list = query.OrderByDescending(t => t.CreatedAt).ToList();
+            var paged = list.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult(((IReadOnlyCollection<Transaction>)paged, (long)list.Count));
+        }
     }
 
     private sealed class FakeLedgerRepository : ILedgerRepository
@@ -309,6 +345,28 @@ public class WalletBusinessServiceTests
 
         public Task<IReadOnlyCollection<LedgerEntry>> GetByTransactionIdAsync(Guid transactionId, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyCollection<LedgerEntry>>(Entries.Where(e => e.TransactionId == transactionId).ToList());
+
+        public Task<decimal> GetWalletLedgerSumAsync(Guid walletId, CancellationToken ct = default)
+        {
+            var credits = Entries.Where(e => e.WalletId == walletId && e.EntryType == LedgerEntryType.Credit).Sum(e => e.Amount);
+            var debits = Entries.Where(e => e.WalletId == walletId && e.EntryType == LedgerEntryType.Debit).Sum(e => e.Amount);
+            return Task.FromResult(credits - debits);
+        }
+
+        public Task<(decimal TotalDebits, decimal TotalCredits)> GetTransactionLedgerSumAsync(Guid transactionId, CancellationToken ct = default)
+        {
+            var debits = Entries.Where(e => e.TransactionId == transactionId && e.EntryType == LedgerEntryType.Debit).Sum(e => e.Amount);
+            var credits = Entries.Where(e => e.TransactionId == transactionId && e.EntryType == LedgerEntryType.Credit).Sum(e => e.Amount);
+            return Task.FromResult((debits, credits));
+        }
+
+        public Task<SystemLedgerAuditResult> GetSystemLedgerDiscrepanciesAsync(CancellationToken ct = default) =>
+            Task.FromResult(new SystemLedgerAuditResult(
+                Array.Empty<TransactionDiscrepancy>(),
+                Array.Empty<WalletDiscrepancy>(),
+                0,
+                0,
+                Entries.Count));
     }
 
     private sealed class FakeIdempotencyService : IIdempotencyService

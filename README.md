@@ -99,20 +99,28 @@ PaymentLedgerService/
 - `POST /api/v1/wallets/{id}/credit`: Credit funds to user wallet from System Treasury with balanced double-entry ledger entries.
 - `POST /api/v1/wallets/{id}/debit`: Debit funds from user wallet to System Treasury using pessimistic row locking (`SELECT ... FOR UPDATE`) and real-time balance validation.
 
-### 4. Centralized Idempotency Engine (`IIdempotencyService`)
+### 4. Refund & Auditability (Phase 4)
+- `POST /api/v1/transactions/{id}/refund`: Process full or partial refunds for debit transactions with transaction reference linking, user wallet crediting, and balanced double-entry ledger entries (Treasury Debit, User Credit).
+- `GET /api/v1/transactions/{id}`: Detailed transaction lookup including child double-entry ledger records and linked refund summaries.
+- `GET /api/v1/transactions/{id}/verify`: Per-transaction consistency audit verifying `TotalDebits == TotalCredits == Transaction.Amount`.
+- `GET /api/v1/wallets/{id}/transactions`: Server-side paginated transaction history with optional filtering by type, status, and date range.
+- `GET /api/v1/wallets/{id}/verify`: Wallet balance reconciliation verifying `wallet.Balance == Sum(Credits) - Sum(Debits)`.
+- `POST /api/v1/ledger/verify` / `GET /api/v1/ledger/verify`: System-wide double-entry consistency verification auditing all accounts and transactions.
+
+### 5. Centralized Idempotency Engine (`IIdempotencyService`)
 - **Header-Based Idempotency**: Evaluates `Idempotency-Key` (via header or request payload) and enforces SHA-256 payload fingerprinting.
 - **Deterministic Business Keys**: Supports optional `ReferenceId` (e.g. order ID, external payment reference) constructing `"{action}:{walletId}:{referenceId}"` to guarantee zero double-spend even if client UUID generation fails.
 - **Anti-Double-Click Guard**: Memory-cached request fingerprinting (`SHA256(action:walletId:amount)`) rejecting rapid duplicate clicks within a 3-second throttle window with HTTP 429 (`DUPLICATE_REQUEST`).
 - **Conflict Detection**: Throws `IDEMPOTENCY_CONFLICT` (409) if an idempotency key is reused with a different payload, and `CONCURRENCY_CONFLICT` (409) if an identical mutation is already being processed concurrently.
 
-### 5. Observability & Global Exception Handling
+### 6. Observability & Global Exception Handling
 - **Serilog Logging**: Structured console logging and daily rolling file logs (`logs/payment-ledger-.log`).
 - **Correlation Tracking**: `CorrelationIdMiddleware` extracts or generates `X-Correlation-ID`, populating Serilog `LogContext`, response headers, and ambient `CorrelationContext.Current`.
 - **Standardized Response Envelopes**: All client and server errors are trapped by `GlobalExceptionHandlerMiddleware` and converted into standardized `ErrorResponse` envelopes without stack trace leakage:
   - `ValidationException` &rarr; `400 Bad Request` with field-level `ErrorDetail` objects.
-  - `DomainException` (`USER_NOT_FOUND`, `WALLET_NOT_FOUND`) &rarr; `404 Not Found`.
+  - `DomainException` (`USER_NOT_FOUND`, `WALLET_NOT_FOUND`, `TRANSACTION_NOT_FOUND`) &rarr; `404 Not Found`.
   - `DomainException` (`INSUFFICIENT_BALANCE`, `IDEMPOTENCY_CONFLICT`, `CONCURRENCY_CONFLICT`) &rarr; `409 Conflict`.
-  - `DomainException` (domain constraint violation) &rarr; `400 Bad Request`.
+  - `DomainException` (`TRANSACTION_NOT_REFUNDABLE`, `REFUND_AMOUNT_EXCEEDED`, `CURRENCY_MISMATCH`, domain constraint violation) &rarr; `400 Bad Request`.
   - Unhandled / System `Exception` &rarr; `500 Internal Server Error` with generic safe error message and error code `INTERNAL_SERVER_ERROR`.
 
 ---
@@ -262,10 +270,13 @@ dotnet test PaymentLedgerService.sln
 
 ### Test Suites
 
-- **Unit & Concurrency Tests** (`PaymentLedger.UnitTests` - 137 passed):
+- **Unit & Concurrency Tests** (`PaymentLedger.UnitTests` - 179 passed):
   - Invariants, money precision, wallet status state transitions, and ledger double-entry balancing.
-  - Direct business service logic (`UserBusinessService`, `WalletBusinessService`) and edge case validations.
+  - Direct business service logic (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`) and edge case validations.
   - Multi-threaded concurrency simulation tests verifying `SELECT ... FOR UPDATE` row serialization, zero-negative balance invariants, and idempotency deduplication under parallel execution.
+  - Refund lifecycle, partial and full refunds, over-refund guardrails, and transaction reference tracking.
+  - Wallet balance reconciliation and double-entry consistency audits.
+  - API controller endpoints, pagination, and error response contracts.
   - `CorrelationIdMiddleware` context lifecycle and whitespace sanitization.
   - `GlobalExceptionHandlerMiddleware` error code mapping (400, 404, 409, 429, 500) and response streaming safety.
   - `IdempotencyService` thread synchronization, hashing, and anti-double-click multi-thread isolation.

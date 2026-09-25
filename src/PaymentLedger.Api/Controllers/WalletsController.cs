@@ -154,4 +154,31 @@ public class WalletsController : ControllerBase
             transaction,
             "Wallet debited successfully."));
     }
+
+    [HttpGet("{id}/transactions")]
+    public async Task<IActionResult> GetWalletTransactions(
+        Guid id,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? type = null,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTimeOffset? fromDate = null,
+        [FromQuery] DateTimeOffset? toDate = null,
+        CancellationToken ct = default)
+    {
+        var request = new GetWalletTransactionsRequest(pageNumber, pageSize, type, status, fromDate, toDate);
+        var pagedResponse = await _walletService.GetWalletTransactionsPagedAsync(id, request, ct);
+
+        return Ok(pagedResponse);
+    }
+
+    [HttpGet("{id}/verify")]
+    public async Task<IActionResult> VerifyWalletConsistency(Guid id, CancellationToken ct)
+    {
+        var audit = await _walletService.VerifyWalletConsistencyAsync(id, ct);
+
+        return Ok(ApiResponse<WalletAuditResponse>.Ok(
+            audit,
+            "Wallet consistency verification completed."));
+    }
 }

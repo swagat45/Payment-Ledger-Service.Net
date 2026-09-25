@@ -22,6 +22,10 @@ public static class DependencyInjection
         services.AddScoped<IWalletBusinessService>(sp => sp.GetRequiredService<WalletBusinessService>());
         services.AddScoped<IWalletBusiness>(sp => sp.GetRequiredService<WalletBusinessService>());
 
+        services.AddScoped<TransactionBusinessService>();
+        services.AddScoped<ITransactionBusinessService>(sp => sp.GetRequiredService<TransactionBusinessService>());
+        services.AddScoped<ITransactionBusiness>(sp => sp.GetRequiredService<TransactionBusinessService>());
+
         services.AddSingleton<IExceptionToResponseMapper, ExceptionToResponseMapper>();
 
         return services;

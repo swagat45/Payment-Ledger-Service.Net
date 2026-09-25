@@ -1,4 +1,5 @@
 using PaymentLedger.Business.Models;
+using PaymentLedger.Shared.Responses;
 
 namespace PaymentLedger.Business.Services;
 
@@ -28,6 +29,15 @@ public interface IWalletBusinessService
         Guid walletId,
         DebitWalletRequest request,
         string? idempotencyKeyHeader,
+        CancellationToken ct = default);
+
+    Task<PagedResponse<TransactionResponse>> GetWalletTransactionsPagedAsync(
+        Guid walletId,
+        GetWalletTransactionsRequest request,
+        CancellationToken ct = default);
+
+    Task<WalletAuditResponse> VerifyWalletConsistencyAsync(
+        Guid walletId,
         CancellationToken ct = default);
 }
 

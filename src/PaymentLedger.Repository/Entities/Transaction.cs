@@ -1,4 +1,6 @@
 using PaymentLedger.Repository.Enums;
+using PaymentLedger.Repository.Exceptions;
+using PaymentLedger.Shared.Constants;
 
 namespace PaymentLedger.Repository.Entities;
 
@@ -149,5 +151,100 @@ public class Transaction
             CreatedAt = timestamp,
             UpdatedAt = timestamp
         };
+    }
+
+    public static Transaction CreateRefund(
+        Guid originalTransactionId,
+        Guid sourceWalletId,
+        Guid destinationWalletId,
+        decimal amount,
+        string currency,
+        string idempotencyKey,
+        DateTimeOffset timestamp,
+        string? description = null,
+        string? metadata = null)
+    {
+        if (originalTransactionId == Guid.Empty)
+        {
+            throw new DomainException("Original transaction ID is required.");
+        }
+
+        if (sourceWalletId == Guid.Empty)
+        {
+            throw new DomainException("Source wallet ID is required.");
+        }
+
+        if (destinationWalletId == Guid.Empty)
+        {
+            throw new DomainException("Destination wallet ID is required.");
+        }
+
+        if (amount <= 0)
+        {
+            throw new DomainException("Refund amount must be greater than zero.", ErrorCodes.InvalidAmount);
+        }
+
+        if (string.IsNullOrWhiteSpace(currency))
+        {
+            throw new DomainException("Currency is required.", ErrorCodes.InvalidCurrency);
+        }
+
+        var normalizedCurrency = currency.Trim().ToUpperInvariant();
+        if (normalizedCurrency.Length != 3 || !normalizedCurrency.All(char.IsLetter))
+        {
+            throw new DomainException("Currency must be a valid 3-letter code.", ErrorCodes.InvalidCurrency);
+        }
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            throw new DomainException("Idempotency key is required.", ErrorCodes.IdempotencyKeyRequired);
+        }
+
+        var codeSuffix = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        var transactionCode = $"TXN-RF-{timestamp:yyyyMMddHHmmss}-{codeSuffix}";
+
+        return new Transaction
+        {
+            Id = Guid.NewGuid(),
+            TransactionCode = transactionCode,
+            Type = TransactionType.Refund,
+            Status = TransactionStatus.Posted,
+            SourceWalletId = sourceWalletId,
+            DestinationWalletId = destinationWalletId,
+            Amount = decimal.Round(amount, 2, MidpointRounding.ToEven),
+            Currency = normalizedCurrency,
+            IdempotencyKey = idempotencyKey.Trim(),
+            ReferenceTransactionId = originalTransactionId,
+            Description = description?.Trim(),
+            Metadata = metadata,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        };
+    }
+
+    public void MarkRefunded(DateTimeOffset timestamp)
+    {
+        if (Status != TransactionStatus.Posted && Status != TransactionStatus.PartiallyRefunded)
+        {
+            throw new DomainException(
+                $"Cannot refund a transaction with status '{Status}'. Only posted or partially refunded transactions can be refunded.",
+                ErrorCodes.TransactionNotRefundable);
+        }
+
+        Status = TransactionStatus.Refunded;
+        UpdatedAt = timestamp;
+    }
+
+    public void MarkPartiallyRefunded(DateTimeOffset timestamp)
+    {
+        if (Status != TransactionStatus.Posted && Status != TransactionStatus.PartiallyRefunded)
+        {
+            throw new DomainException(
+                $"Cannot partially refund a transaction with status '{Status}'. Only posted or partially refunded transactions can be partially refunded.",
+                ErrorCodes.TransactionNotRefundable);
+        }
+
+        Status = TransactionStatus.PartiallyRefunded;
+        UpdatedAt = timestamp;
     }
 }

@@ -7,6 +7,7 @@ using PaymentLedger.Repository.Enums;
 using PaymentLedger.Repository.Exceptions;
 using PaymentLedger.Repository.Repositories;
 using PaymentLedger.Shared.Constants;
+using PaymentLedger.Shared.Responses;
 
 namespace PaymentLedger.Business.Services;
 
@@ -468,6 +469,109 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
             await _unitOfWork.RollbackTransactionAsync(ct);
             throw;
         }
+    }
+
+    public async Task<PagedResponse<TransactionResponse>> GetWalletTransactionsPagedAsync(
+        Guid walletId,
+        GetWalletTransactionsRequest request,
+        CancellationToken ct = default)
+    {
+        if (walletId == Guid.Empty)
+        {
+            throw new ValidationException("WalletId", "Wallet ID is required.");
+        }
+
+        var wallet = await _walletRepository.GetByIdAsync(walletId, ct);
+        if (wallet == null)
+        {
+            throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
+        }
+
+        if (request.PageNumber < 1)
+        {
+            throw new ValidationException("PageNumber", "Page number must be at least 1.");
+        }
+
+        if (request.PageSize < 1 || request.PageSize > 100)
+        {
+            throw new ValidationException("PageSize", "Page size must be between 1 and 100.");
+        }
+
+        TransactionType? type = null;
+        if (!string.IsNullOrWhiteSpace(request.Type) &&
+            Enum.TryParse<TransactionType>(request.Type, true, out var parsedType))
+        {
+            type = parsedType;
+        }
+
+        TransactionStatus? status = null;
+        if (!string.IsNullOrWhiteSpace(request.Status) &&
+            Enum.TryParse<TransactionStatus>(request.Status, true, out var parsedStatus))
+        {
+            status = parsedStatus;
+        }
+
+        var (items, totalCount) = await _transactionRepository.GetPagedByWalletIdAsync(
+            walletId,
+            request.PageNumber,
+            request.PageSize,
+            type,
+            status,
+            request.FromDate,
+            request.ToDate,
+            ct);
+
+        var responses = items.Select(t => new TransactionResponse(
+            t.Id,
+            t.TransactionCode,
+            t.Type.ToString(),
+            t.Status.ToString(),
+            t.SourceWalletId,
+            t.DestinationWalletId,
+            t.Amount,
+            t.Currency,
+            t.IdempotencyKey,
+            t.Description,
+            t.Metadata,
+            null,
+            t.CreatedAt)).ToList();
+
+        return PagedResponse<TransactionResponse>.Ok(
+            responses,
+            request.PageNumber,
+            request.PageSize,
+            totalCount,
+            "Wallet transactions retrieved successfully.");
+    }
+
+    public async Task<WalletAuditResponse> VerifyWalletConsistencyAsync(
+        Guid walletId,
+        CancellationToken ct = default)
+    {
+        if (walletId == Guid.Empty)
+        {
+            throw new ValidationException("WalletId", "Wallet ID is required.");
+        }
+
+        var wallet = await _walletRepository.GetByIdAsync(walletId, ct);
+        if (wallet == null)
+        {
+            throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
+        }
+
+        var calculatedLedgerBalance = await _ledgerRepository.GetWalletLedgerSumAsync(walletId, ct);
+        var discrepancy = decimal.Round(wallet.Balance - calculatedLedgerBalance, 2);
+        var isConsistent = discrepancy == 0m;
+
+        return new WalletAuditResponse(
+            WalletId: wallet.Id,
+            UserId: wallet.UserId,
+            Currency: wallet.Currency,
+            CurrentBalance: wallet.Balance,
+            CalculatedLedgerBalance: calculatedLedgerBalance,
+            Discrepancy: discrepancy,
+            IsConsistent: isConsistent,
+            AuditedAt: _dateTimeProvider.UtcNow);
     }
 
     private static void ValidateCreateWalletRequest(CreateWalletRequest request)

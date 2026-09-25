@@ -34,4 +34,20 @@ export class WalletService {
     const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
     return this.http.post<ApiResponse<Transaction>>(`${this.baseUrl}/${walletId}/debit`, request, { headers });
   }
+
+  blockWallet(walletId: string): Observable<ApiResponse<Wallet>> {
+    return this.http.patch<ApiResponse<Wallet>>(`${this.baseUrl}/${walletId}/block`, {});
+  }
+
+  unblockWallet(walletId: string): Observable<ApiResponse<Wallet>> {
+    return this.http.patch<ApiResponse<Wallet>>(`${this.baseUrl}/${walletId}/unblock`, {});
+  }
+
+  closeWallet(walletId: string): Observable<ApiResponse<Wallet>> {
+    return this.http.patch<ApiResponse<Wallet>>(`${this.baseUrl}/${walletId}/close`, {});
+  }
+
+  verifyWalletConsistency(walletId: string): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(`${this.baseUrl}/${walletId}/verify`);
+  }
 }

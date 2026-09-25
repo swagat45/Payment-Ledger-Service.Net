@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { WalletService } from '../../core/services/wallet.service';
 import { TransactionService } from '../../core/services/transaction.service';
@@ -9,7 +10,7 @@ import { Transaction } from '../../core/models/transaction.model';
 @Component({
   selector: 'app-wallet-details',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div *ngIf="wallet()">
       <!-- Header -->
@@ -21,11 +22,23 @@ import { Transaction } from '../../core/models/transaction.model';
           <p class="text-sm text-gray-500 mt-1">ID: {{ wallet()?.walletId }}</p>
         </div>
         <div class="mt-4 flex md:ml-4 md:mt-0 space-x-3">
-          <button type="button" class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
-            Showcase: Concurrency Test
+          <!-- Wallet Actions -->
+          <button *ngIf="wallet()?.status === 'Active'" (click)="blockWallet()" type="button" class="inline-flex items-center rounded-md bg-yellow-100 px-3 py-2 text-sm font-semibold text-yellow-800 shadow-sm hover:bg-yellow-200">
+            Block Wallet
           </button>
-          <button type="button" class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
-            Showcase: Idempotency Credit
+          <button *ngIf="wallet()?.status === 'Blocked'" (click)="unblockWallet()" type="button" class="inline-flex items-center rounded-md bg-green-100 px-3 py-2 text-sm font-semibold text-green-800 shadow-sm hover:bg-green-200">
+            Unblock Wallet
+          </button>
+          <button *ngIf="wallet()?.status !== 'Closed'" (click)="closeWallet()" type="button" class="inline-flex items-center rounded-md bg-red-100 px-3 py-2 text-sm font-semibold text-red-800 shadow-sm hover:bg-red-200">
+            Close Wallet
+          </button>
+
+          <!-- Showcase Actions -->
+          <button (click)="openCreditModal()" type="button" class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+            Showcase: Credit & Idempotency
+          </button>
+          <button (click)="openDebitModal()" type="button" class="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+            Showcase: Debit & Concurrency
           </button>
         </div>
       </div>
@@ -39,10 +52,45 @@ import { Transaction } from '../../core/models/transaction.model';
               {{ wallet()?.availableBalance || wallet()?.balance | currency:wallet()?.currency }}
             </dd>
           </div>
-          <div>
+          <div class="flex items-center space-x-4">
+            <button (click)="verifyWallet()" class="text-sm text-indigo-600 hover:text-indigo-900 border border-indigo-200 rounded px-2 py-1">Verify Consistency</button>
             <span class="inline-flex items-center rounded-full bg-green-100 px-3 py-0.5 text-sm font-medium text-green-800">
               {{ wallet()?.status }}
             </span>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="walletAuditResult()" class="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-md">
+        <h3 class="font-bold text-gray-800">Wallet Audit Result:</h3>
+        <pre class="text-sm text-gray-600 mt-2 whitespace-pre-wrap">{{ walletAuditResult() | json }}</pre>
+        <button (click)="walletAuditResult.set(null)" class="mt-2 text-sm text-red-600">Close</button>
+      </div>
+
+      <!-- Modals (Simple implementation) -->
+      <div *ngIf="isCreditModalOpen()" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+          <h3 class="text-lg font-medium mb-4">Credit Wallet (Idempotency Test)</h3>
+          <input [(ngModel)]="txAmount" type="number" placeholder="Amount" class="mb-4 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md py-2 px-3">
+          <input [(ngModel)]="idempotencyKey" type="text" placeholder="Idempotency Key (e.g. credit-001)" class="mb-4 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md py-2 px-3">
+          
+          <div class="flex justify-end space-x-3">
+            <button (click)="isCreditModalOpen.set(false)" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Cancel</button>
+            <button (click)="submitCredit(1)" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Submit (1x)</button>
+            <button (click)="submitCredit(3)" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700" title="Fires 3 concurrent requests with same key to test Idempotency">Submit (3x Burst)</button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="isDebitModalOpen()" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+          <h3 class="text-lg font-medium mb-4">Debit Wallet (Concurrency Test)</h3>
+          <input [(ngModel)]="txAmount" type="number" placeholder="Amount" class="mb-4 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md py-2 px-3">
+          <p class="text-xs text-gray-500 mb-4">Hint: To test concurrency locking, enter an amount equal to your total balance and hit the 5x Burst button.</p>
+          <div class="flex justify-end space-x-3">
+            <button (click)="isDebitModalOpen.set(false)" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Cancel</button>
+            <button (click)="submitDebit(1)" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Submit (1x)</button>
+            <button (click)="submitDebit(5)" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700" title="Fires 5 concurrent requests with DIFFERENT keys to test DB locking">Submit (5x Burst)</button>
           </div>
         </div>
       </div>
@@ -87,7 +135,19 @@ import { Transaction } from '../../core/models/transaction.model';
                       <tr *ngIf="expandedTx() === tx.transactionId" class="bg-gray-100">
                         <td colspan="5" class="px-6 py-4">
                           <div class="text-sm border border-gray-300 rounded p-4 bg-white shadow-inner">
-                            <h4 class="font-bold mb-2">Double-Entry Ledger Records</h4>
+                            <div class="flex justify-between items-center mb-4">
+                              <h4 class="font-bold">Double-Entry Ledger Records</h4>
+                              <div class="space-x-2">
+                                <button *ngIf="tx.type !== 'Refund' && tx.status === 'Posted'" (click)="refundTransaction(tx); $event.stopPropagation()" class="px-3 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600">Refund</button>
+                                <button (click)="verifyTransaction(tx.transactionId); $event.stopPropagation()" class="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700">Verify</button>
+                              </div>
+                            </div>
+
+                            <div *ngIf="txAuditResult() && txAuditResult().transactionId === tx.transactionId" class="mb-4 p-2 bg-blue-50 border border-blue-200 rounded">
+                               <pre class="text-xs">{{ txAuditResult() | json }}</pre>
+                               <button (click)="txAuditResult.set(null)" class="text-red-500 text-xs mt-1">Close Audit</button>
+                            </div>
+
                             <div class="grid grid-cols-2 gap-4">
                               <div *ngFor="let entry of tx.ledgerEntries" class="border p-2 rounded" [ngClass]="{'border-green-300 bg-green-50': entry.entryType === 'Credit', 'border-red-300 bg-red-50': entry.entryType === 'Debit'}">
                                 <p class="font-semibold">{{ entry.entryType }}</p>
@@ -96,7 +156,7 @@ import { Transaction } from '../../core/models/transaction.model';
                               </div>
                             </div>
                             <div *ngIf="!tx.ledgerEntries || tx.ledgerEntries.length === 0" class="text-gray-500 italic text-center p-2">
-                              No ledger entries loaded. Ensure backend includes them in transaction details API.
+                              Loading ledger entries or none available...
                             </div>
                           </div>
                         </td>
@@ -120,6 +180,14 @@ export class WalletDetailsComponent implements OnInit {
   wallet = signal<Wallet | null>(null);
   transactions = signal<Transaction[]>([]);
   expandedTx = signal<string | null>(null);
+
+  walletAuditResult = signal<any>(null);
+  txAuditResult = signal<any>(null);
+
+  isCreditModalOpen = signal(false);
+  isDebitModalOpen = signal(false);
+  txAmount = 0;
+  idempotencyKey = '';
 
   ngOnInit() {
     const walletId = this.route.snapshot.paramMap.get('id');
@@ -146,8 +214,97 @@ export class WalletDetailsComponent implements OnInit {
       this.expandedTx.set(null);
     } else {
       this.expandedTx.set(txId);
-      // In a real app, we might need to fetch transaction details to get the ledger entries if they aren't included in the paginated response.
-      // this.txService.getTransactionDetails(txId).subscribe(res => { ... update transactions array with ledger entries ... })
+      // Fetch details to get ledger entries
+      this.txService.getTransactionDetails(txId).subscribe(res => {
+         if(res.success) {
+            this.transactions.update(txs => txs.map(t => t.transactionId === txId ? res.data : t));
+         }
+      });
     }
+  }
+
+  // Wallet Actions
+  blockWallet() {
+    this.walletService.blockWallet(this.wallet()!.walletId).subscribe(() => this.loadWallet(this.wallet()!.walletId));
+  }
+
+  unblockWallet() {
+    this.walletService.unblockWallet(this.wallet()!.walletId).subscribe(() => this.loadWallet(this.wallet()!.walletId));
+  }
+
+  closeWallet() {
+    this.walletService.closeWallet(this.wallet()!.walletId).subscribe(() => this.loadWallet(this.wallet()!.walletId));
+  }
+
+  verifyWallet() {
+    this.walletService.verifyWalletConsistency(this.wallet()!.walletId).subscribe({
+      next: (res) => this.walletAuditResult.set(res.data),
+      error: (err) => this.walletAuditResult.set(err.error)
+    });
+  }
+
+  verifyTransaction(txId: string) {
+    this.txService.verifyTransactionConsistency(txId).subscribe({
+      next: (res) => this.txAuditResult.set(res.data),
+      error: (err) => this.txAuditResult.set(err.error)
+    });
+  }
+
+  refundTransaction(tx: Transaction) {
+    const reason = prompt('Enter refund reason:');
+    if(!reason) return;
+    const key = `refund-${tx.transactionId}-${Date.now()}`;
+    this.txService.refundTransaction(tx.transactionId, tx.amount, tx.currency, reason, key).subscribe(() => {
+       this.loadWallet(this.wallet()!.walletId);
+       this.loadTransactions(this.wallet()!.walletId);
+    });
+  }
+
+  // Modals & Showcase
+  openCreditModal() {
+    this.txAmount = 100;
+    this.idempotencyKey = `credit-${Date.now()}`;
+    this.isCreditModalOpen.set(true);
+  }
+
+  openDebitModal() {
+    this.txAmount = 50;
+    this.isDebitModalOpen.set(true);
+  }
+
+  submitCredit(count: number) {
+    const walletId = this.wallet()!.walletId;
+    const req = { amount: this.txAmount, currency: this.wallet()!.currency, description: 'Test Credit' };
+    
+    // For concurrency test, we fire multiple requests without waiting
+    for(let i = 0; i < count; i++) {
+      this.walletService.creditWallet(walletId, req, this.idempotencyKey).subscribe({
+        next: () => {
+          this.loadWallet(walletId);
+          this.loadTransactions(walletId);
+        },
+        error: (err) => console.error('Credit failed', err)
+      });
+    }
+    this.isCreditModalOpen.set(false);
+  }
+
+  submitDebit(count: number) {
+    const walletId = this.wallet()!.walletId;
+    
+    // For debit concurrency, if count > 1, we use DIFFERENT keys to bypass idempotency and test DB locking
+    for(let i = 0; i < count; i++) {
+      const key = count > 1 ? `debit-${Date.now()}-${i}` : `debit-${Date.now()}`;
+      const req = { amount: this.txAmount, currency: this.wallet()!.currency, description: 'Test Debit' };
+      
+      this.walletService.debitWallet(walletId, req, key).subscribe({
+        next: () => {
+          this.loadWallet(walletId);
+          this.loadTransactions(walletId);
+        },
+        error: (err) => console.error('Debit failed', err)
+      });
+    }
+    this.isDebitModalOpen.set(false);
   }
 }

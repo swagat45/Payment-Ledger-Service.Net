@@ -29,4 +29,8 @@ export class TransactionService {
     const body = { amount, currency, reason };
     return this.http.post<ApiResponse<Transaction>>(`${this.baseUrl}/transactions/${transactionId}/refund`, body, { headers });
   }
+
+  verifyTransactionConsistency(transactionId: string): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(`${this.baseUrl}/transactions/${transactionId}/verify`);
+  }
 }

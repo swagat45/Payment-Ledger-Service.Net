@@ -10,60 +10,82 @@ import { User } from '../../core/models/user.model';
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
-    <div>
-      <div class="sm:flex sm:items-center">
-        <div class="sm:flex-auto">
-          <h1 class="text-xl font-semibold text-gray-900">Users</h1>
-          <p class="mt-2 text-sm text-gray-700">A list of all users registered on the platform.</p>
+    <div class="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
+        <div>
+          <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">User Directory</h1>
+          <p class="mt-2 text-sm text-slate-500">Manage all registered users and access their financial wallets.</p>
         </div>
-        <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <button (click)="toggleCreateForm()" class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
-            Add user
+        <div>
+          <button (click)="toggleCreateForm()" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-slate-800 transition-all focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2">
+            <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            Add New User
           </button>
         </div>
       </div>
 
-      <!-- Create Form (Simple Toggle) -->
-      <div *ngIf="showCreateForm()" class="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
-        <h3 class="text-lg font-medium">Create New User</h3>
-        <div class="mt-4 flex space-x-4">
-          <input [(ngModel)]="newUserName" type="text" placeholder="Full Name" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md py-2 px-3">
-          <input [(ngModel)]="newUserEmail" type="email" placeholder="Email Address" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md py-2 px-3">
-          <button (click)="createUser()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Submit</button>
+      <!-- Create Form (Glass Toggle) -->
+      <div *ngIf="showCreateForm()" class="mb-8 p-6 bg-white/70 backdrop-blur-xl border border-slate-200/60 rounded-3xl shadow-sm animate-in slide-in-from-top-4 duration-300">
+        <div class="flex justify-between items-center mb-4">
+           <h3 class="text-lg font-bold text-slate-900">Register User</h3>
+           <button (click)="toggleCreateForm()" class="text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-4">
+          <input [(ngModel)]="newUserName" type="text" placeholder="Full Name" class="flex-1 bg-white border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl py-2.5 px-4 text-sm font-medium transition-shadow shadow-sm">
+          <input [(ngModel)]="newUserEmail" type="email" placeholder="Email Address" class="flex-1 bg-white border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl py-2.5 px-4 text-sm font-medium transition-shadow shadow-sm">
+          <button (click)="createUser()" class="bg-indigo-600 text-white font-semibold px-6 py-2.5 rounded-xl hover:bg-indigo-500 transition-colors shadow-md">Create &rarr;</button>
         </div>
       </div>
 
-      <div class="mt-8 flex flex-col">
-        <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-              <table class="min-w-full divide-y divide-gray-300">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Name</th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Email</th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span class="sr-only">View Wallet</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                  <tr *ngFor="let user of users()">
-                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{ user.fullName }}</td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ user.email }}</td>
-                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      <span class="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800">{{ user.status }}</span>
-                    </td>
-                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                      <!-- In a real app we might lookup the wallet ID here, or go to a user detail page -->
-                      <a [routerLink]="['/users', user.userId]" class="text-indigo-600 hover:text-indigo-900">View<span class="sr-only">, {{ user.fullName }}</span></a>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div class="bg-white/70 backdrop-blur-xl shadow-sm border border-slate-200/60 rounded-3xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200/60">
+            <thead class="bg-slate-50/50">
+              <tr>
+                <th scope="col" class="py-4 pl-6 pr-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">User Profile</th>
+                <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">System ID</th>
+                <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                <th scope="col" class="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white/50">
+              <tr *ngFor="let user of users()" class="hover:bg-slate-50/80 transition-colors group">
+                <td class="whitespace-nowrap py-5 pl-6 pr-3">
+                  <div class="flex items-center gap-4">
+                    <div class="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200 shadow-sm group-hover:scale-105 transition-transform">
+                      {{ user.fullName.charAt(0) }}
+                    </div>
+                    <div>
+                      <div class="text-sm font-bold text-slate-900">{{ user.fullName }}</div>
+                      <div class="text-xs text-slate-500">{{ user.email }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="whitespace-nowrap px-3 py-5 text-xs text-slate-400 font-mono">
+                  {{ user.userId }}
+                </td>
+                <td class="whitespace-nowrap px-3 py-5 text-sm">
+                  <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset"
+                    [ngClass]="user.status === 'Active' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' : 'bg-slate-50 text-slate-600 ring-slate-500/20'">
+                    <div class="w-1.5 h-1.5 rounded-full" [ngClass]="user.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-400'"></div>
+                    {{ user.status }}
+                  </span>
+                </td>
+                <td class="whitespace-nowrap py-5 pl-3 pr-6 text-right text-sm font-medium">
+                  <a [routerLink]="['/users', user.userId]" class="inline-flex items-center text-indigo-600 hover:text-indigo-900 font-bold">
+                    View Wallet
+                    <svg class="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                  </a>
+                </td>
+              </tr>
+              <tr *ngIf="users().length === 0">
+                <td colspan="4" class="py-12 text-center text-slate-500">
+                  <svg class="w-12 h-12 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                  <p>No users found in the system.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

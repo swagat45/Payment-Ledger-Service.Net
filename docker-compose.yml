@@ -35,5 +35,18 @@ services:
     ports:
       - "8080:8080"
 
+  paymentledger.ui:
+    build:
+      context: ./PaymentLedger.UI
+      dockerfile: Dockerfile
+    depends_on:
+      - paymentledger.api
+    ports:
+      - "4200:80"
+    environment:
+      # Optional: In a real production setup, you'd use env vars or Nginx substitution
+      # to point the frontend to the backend URL dynamically.
+      - NGINX_PORT=80
+
 volumes:
   paymentledger-postgres-data:

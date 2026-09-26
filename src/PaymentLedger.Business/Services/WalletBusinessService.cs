@@ -220,6 +220,18 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
                 throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
             }
 
+            var postLockCheck = await _idempotencyService.CheckAsync<TransactionResponse>(
+                idempotencyKey,
+                endpoint,
+                requestHash,
+                ct);
+
+            if (postLockCheck.IsProcessed && postLockCheck.Result != null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(ct);
+                return postLockCheck.Result;
+            }
+
             if (wallet.Status != WalletStatus.Active)
             {
                 throw new DomainException($"Cannot credit wallet with status '{wallet.Status}'. Only active wallets can receive funds.", ErrorCodes.WalletNotActive);
@@ -365,6 +377,18 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
             if (wallet == null)
             {
                 throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
+            }
+
+            var postLockCheck = await _idempotencyService.CheckAsync<TransactionResponse>(
+                idempotencyKey,
+                endpoint,
+                requestHash,
+                ct);
+
+            if (postLockCheck.IsProcessed && postLockCheck.Result != null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(ct);
+                return postLockCheck.Result;
             }
 
             if (wallet.Status != WalletStatus.Active)

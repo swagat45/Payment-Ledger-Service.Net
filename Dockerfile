@@ -3,9 +3,8 @@ WORKDIR /src
 
 COPY PaymentLedgerService.sln ./
 COPY src/PaymentLedger.Api/PaymentLedger.Api.csproj src/PaymentLedger.Api/
-COPY src/PaymentLedger.Application/PaymentLedger.Application.csproj src/PaymentLedger.Application/
-COPY src/PaymentLedger.Domain/PaymentLedger.Domain.csproj src/PaymentLedger.Domain/
-COPY src/PaymentLedger.Infrastructure/PaymentLedger.Infrastructure.csproj src/PaymentLedger.Infrastructure/
+COPY src/PaymentLedger.Business/PaymentLedger.Business.csproj src/PaymentLedger.Business/
+COPY src/PaymentLedger.Repository/PaymentLedger.Repository.csproj src/PaymentLedger.Repository/
 COPY src/PaymentLedger.Shared/PaymentLedger.Shared.csproj src/PaymentLedger.Shared/
 COPY tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj tests/PaymentLedger.UnitTests/
 COPY tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.csproj tests/PaymentLedger.IntegrationTests/

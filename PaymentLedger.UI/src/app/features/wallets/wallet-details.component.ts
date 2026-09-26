@@ -256,7 +256,7 @@ import { Transaction } from '../../core/models/transaction.model';
             </div>
             <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
                <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-               <p class="text-xs text-amber-800 leading-relaxed font-medium">To test DB pessimistic locking (`FOR UPDATE`), enter your exact total balance and fire a 5x Burst. Only 1 will succeed.</p>
+               <p class="text-xs text-amber-800 leading-relaxed font-medium">To test DB pessimistic locking ('FOR UPDATE'), enter your exact total balance and fire a 5x Burst. Only 1 will succeed.</p>
             </div>
           </div>
           

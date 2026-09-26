@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PaymentLedger.Repository.Abstractions;
 using PaymentLedger.Repository.Repositories;
-using PaymentLedger.Repository.Abstractions;
 using PaymentLedger.Repository.Entities;
 
 namespace PaymentLedger.Repository.Persistence;
@@ -51,19 +50,25 @@ public sealed class AppDbContext : DbContext, IAppDbContext, IUnitOfWork
 
     public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)
     {
-        if (Database.CurrentTransaction != null)
+        var currentTransaction = Database.CurrentTransaction;
+        if (currentTransaction != null)
         {
-            await Database.CurrentTransaction.CommitAsync(cancellationToken);
-            await Database.CurrentTransaction.DisposeAsync();
+            await using (currentTransaction)
+            {
+                await currentTransaction.CommitAsync(cancellationToken);
+            }
         }
     }
 
     public async Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
     {
-        if (Database.CurrentTransaction != null)
+        var currentTransaction = Database.CurrentTransaction;
+        if (currentTransaction != null)
         {
-            await Database.CurrentTransaction.RollbackAsync(cancellationToken);
-            await Database.CurrentTransaction.DisposeAsync();
+            await using (currentTransaction)
+            {
+                await currentTransaction.RollbackAsync(cancellationToken);
+            }
         }
     }
 }

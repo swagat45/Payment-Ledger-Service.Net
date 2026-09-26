@@ -127,6 +127,18 @@ public class TransactionBusinessService : ITransactionBusinessService, ITransact
                 throw new DomainException("User wallet not found.", ErrorCodes.WalletNotFound);
             }
 
+            var postLockCheck = await _idempotencyService.CheckAsync<TransactionResponse>(
+                idempotencyKey,
+                endpoint,
+                requestHash,
+                ct);
+
+            if (postLockCheck.IsProcessed && postLockCheck.Result != null)
+            {
+                await _unitOfWork.RollbackTransactionAsync(ct);
+                return postLockCheck.Result;
+            }
+
             if (userWallet.Status != WalletStatus.Active)
             {
                 throw new DomainException($"Cannot refund to wallet with status '{userWallet.Status}'. Only active wallets can receive funds.", ErrorCodes.WalletNotActive);

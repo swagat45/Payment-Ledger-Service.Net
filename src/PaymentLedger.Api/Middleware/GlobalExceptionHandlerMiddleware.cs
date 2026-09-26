@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using PaymentLedger.Business.Exceptions;
 using PaymentLedger.Shared.Context;
 
@@ -17,11 +18,20 @@ public sealed class GlobalExceptionHandlerMiddleware
     private readonly IExceptionToResponseMapper _exceptionMapper;
     private readonly ICorrelationIdProvider? _correlationIdProvider;
 
+    [ActivatorUtilitiesConstructor]
+    public GlobalExceptionHandlerMiddleware(
+        RequestDelegate next,
+        ILogger<GlobalExceptionHandlerMiddleware> logger,
+        IExceptionToResponseMapper exceptionMapper)
+        : this(next, logger, exceptionMapper, null)
+    {
+    }
+
     public GlobalExceptionHandlerMiddleware(
         RequestDelegate next,
         ILogger<GlobalExceptionHandlerMiddleware> logger,
         IExceptionToResponseMapper exceptionMapper,
-        ICorrelationIdProvider? correlationIdProvider = null)
+        ICorrelationIdProvider? correlationIdProvider)
     {
         _next = next;
         _logger = logger;

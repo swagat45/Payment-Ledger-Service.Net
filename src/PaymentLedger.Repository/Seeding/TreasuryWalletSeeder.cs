@@ -1,7 +1,6 @@
 using PaymentLedger.Repository.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using PaymentLedger.Repository.Abstractions;
 using PaymentLedger.Repository.Entities;
 using PaymentLedger.Repository.Enums;
 using PaymentLedger.Repository.Options;

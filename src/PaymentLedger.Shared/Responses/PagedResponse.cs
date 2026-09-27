@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace PaymentLedger.Shared.Responses;
 
 public sealed class PagedResponse<T> : ApiResponse<IReadOnlyCollection<T>>
@@ -9,6 +11,9 @@ public sealed class PagedResponse<T> : ApiResponse<IReadOnlyCollection<T>>
     public long TotalCount { get; init; }
 
     public int TotalPages => PageSize <= 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+
+    [JsonPropertyName("items")]
+    public IReadOnlyCollection<T> Items => Data ?? Array.Empty<T>();
 
     public static PagedResponse<T> Ok(
         IReadOnlyCollection<T> data,

@@ -1,190 +1,251 @@
 # Payment Ledger Service
 
-Production-grade backend service for an idempotent digital wallet and double-entry ledger system built with **.NET 10**, **ASP.NET Core**, **PostgreSQL**, and **Entity Framework Core**.
+Production-grade, idempotent digital wallet and double-entry financial ledger system built with **.NET 10**, **C# 13**, **PostgreSQL 17**, **Entity Framework Core 10**, and an **Angular 17** glassmorphic dashboard.
 
 ---
 
-## Architecture & Design
+## 1. Table of Contents
 
-The service follows a streamlined, direct **3-tier architecture** designed for high maintainability, minimal indirection, and strict separation of concerns:
+- [System Architecture](#2-system-architecture)
+- [Financial Ledger Principles & Invariants](#3-financial-ledger-principles--invariants)
+- [Concurrency & Idempotency Guarantees](#4-concurrency--idempotency-guarantees)
+- [Project Structure](#5-project-structure)
+- [Quick Start Guide](#6-quick-start-guide)
+  - [Option A: Docker Compose (Full-Stack - Recommended)](#option-a-docker-compose-full-stack---recommended)
+  - [Option B: Local .NET CLI Backend](#option-b-local-net-cli-backend)
+  - [Option C: Angular Frontend Development Server](#option-c-angular-frontend-development-server)
+- [API Endpoints Reference](#7-api-endpoints-reference)
+- [Sample API Requests & Payloads](#8-sample-api-requests--payloads)
+- [Postman Collection](#9-postman-collection)
+- [Testing & Quality Gates](#10-testing--quality-gates)
+  - [Unit Tests (183 tests)](#101-unit-tests)
+  - [Architecture Tests (7 tests)](#102-architecture-boundary-tests)
+  - [Integration & Concurrency Tests (9 tests)](#103-integration--concurrency-tests)
+- [Database Migrations](#11-database-migrations)
+- [Observability & Error Handling](#12-observability--error-handling)
+
+---
+
+## 2. System Architecture
+
+The backend follows a streamlined, direct **3-tier architecture** with strict layer boundaries and zero MediatR/CQRS pipeline overhead:
 
 ```
 Controller (Api) ──> Business (Logic & Validations) ──> Repository (Database Operations)
 ```
 
-### Architectural Principles
+```mermaid
+flowchart TD
+    subgraph Client["Client Tier"]
+        UI["Angular 17 SPA<br/>(Tailwind CSS)"]
+        API_Client["External HTTP / API Clients"]
+    end
 
-1. **Direct Layer Flow**:
-   - **`PaymentLedger.Api` (Presentation)**: Exposes RESTful HTTP endpoints, manages middleware (correlation tracking, global exception handling), and coordinates dependency injection. Controllers directly invoke strongly-typed Business services (`IUserBusiness`, `IWalletBusiness`). Zero MediatR / CQRS pipeline overhead.
-   - **`PaymentLedger.Business` (Business & Validation)**: Contains all business logic, invariant enforcement, request validations, edge-case handling, and financial orchestration (double-entry ledger creation, row-locking serialization, and idempotency guarantees).
-   - **`PaymentLedger.Repository` (Data & Persistence)**: Encapsulates EF Core `AppDbContext`, database entities, entity configurations, repository pattern implementations, database migrations, and treasury seeding.
-   - **`PaymentLedger.Shared` (Cross-Cutting Contracts)**: Shared standard response envelopes (`ApiResponse<T>`, `ErrorResponse`, `PagedResponse<T>`), application-wide error codes, and correlation tracking context.
+    subgraph Presentation["Presentation Tier (PaymentLedger.Api)"]
+        Nginx["Nginx Reverse Proxy (:4200)"]
+        Gateway["ASP.NET Core Web API (:8080)"]
+        Middleware["Middlewares:<br/>• CorrelationIdMiddleware<br/>• GlobalExceptionHandlerMiddleware<br/>• Serilog Structured Logging<br/>• CORS Policy"]
+        Controllers["Controllers:<br/>• UsersController<br/>• WalletsController<br/>• TransactionsController<br/>• LedgerController"]
+    end
 
-2. **Consolidated Per-API Model Files**:
-   To avoid file bloat and disconnected models across multiple directories, all Request DTOs, Response DTOs, View Models, and data transfer representations for a given API domain are organized into a single dedicated model file:
-   - **`UserModels.cs`** (`PaymentLedger.Business/Models/UserModels.cs`):
-     - Requests: `CreateUserRequest`, `UpdateUserRequest`, `GetUsersRequest`
-     - Responses: `UserResponse`
-     - DTOs: `UserDto`
-   - **`WalletModels.cs`** (`PaymentLedger.Business/Models/WalletModels.cs`):
-     - Requests: `CreateWalletRequest`, `CreditWalletRequest`, `DebitWalletRequest`
-     - Responses: `WalletResponse`, `WalletBalanceResponse`, `TransactionResponse`
-     - DTOs: `LedgerEntryDto`, `WalletDto`, `WalletBalanceDto`, `TransactionDto`
+    subgraph Business["Business Tier (PaymentLedger.Business)"]
+        BServices["Business Services:<br/>• UserBusinessService<br/>• WalletBusinessService<br/>• TransactionBusinessService"]
+        IdemEngine["Idempotency Engine:<br/>• IdempotencyService<br/>• SHA-256 Fingerprinting<br/>• Memory Anti-Double-Click Guard"]
+        Models["Consolidated Models:<br/>• UserModels.cs<br/>• WalletModels.cs<br/>• TransactionModels.cs"]
+    end
 
-3. **Isolated Database Entities**:
-   Database models are separated from API transfer models and reside cleanly in `PaymentLedger.Repository.Entities`:
-   - `User`, `Wallet`, `Transaction`, `LedgerEntry`, `IdempotencyRequest`.
+    subgraph Persistence["Data & Persistence Tier (PaymentLedger.Repository)"]
+        UnitOfWork["Unit of Work & DbContext:<br/>• AppDbContext<br/>• IUnitOfWork"]
+        Repos["Repositories:<br/>• UserRepository<br/>• WalletRepository (Row Locking)<br/>• TransactionRepository<br/>• LedgerRepository<br/>• IdempotencyRepository"]
+        Entities["Database Entities:<br/>• User<br/>• Wallet<br/>• Transaction<br/>• LedgerEntry<br/>• IdempotencyRequest"]
+    end
+
+    subgraph Database["Database Tier"]
+        Postgres[("PostgreSQL 17 Database<br/>• SELECT ... FOR UPDATE<br/>• CHECK balance >= 0")]
+    end
+
+    UI --> Nginx
+    Nginx --> Gateway
+    API_Client --> Gateway
+    Gateway --> Middleware
+    Middleware --> Controllers
+    Controllers --> BServices
+    BServices --> IdemEngine
+    BServices --> UnitOfWork
+    BServices --> Repos
+    Repos --> Entities
+    UnitOfWork --> Postgres
+    Repos --> Postgres
+```
+
+> Detailed architecture flows, sequence diagrams, and database entity relationships are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
-## Project Structure
+## 3. Financial Ledger Principles & Invariants
+
+1. **Strict Double-Entry Bookkeeping**:
+   Every balance-altering transaction generates at least two immutable `LedgerEntry` records (Debit and Credit) such that:
+   $$\sum \text{Debits} == \sum \text{Credits} == \text{Transaction.Amount}$$
+   - **Credit Flow**: System Treasury Debit, User Wallet Credit.
+   - **Debit Flow**: User Wallet Debit, System Treasury Credit.
+   - **Refund Flow**: System Treasury Debit, User Wallet Credit (linked via `ReferenceTransactionId`).
+
+2. **Zero-Negative Balance Invariant**:
+   - A digital wallet can **never** drop below `0.00`.
+   - Guarded at the domain layer (`wallet.Debit(...)` throws `DomainException` if balance insufficient).
+   - Enforced at the database engine level via PostgreSQL check constraint:
+     ```sql
+     CONSTRAINT ck_wallets_balance_non_negative CHECK (balance >= 0)
+     ```
+
+3. **Money Precision**:
+   All monetary amounts are represented as `decimal` with precision `numeric(18,2)`. Amounts are rounded to 2 decimal places using `decimal.Round(amount, 2)`.
+
+4. **Cryptographic Ledger Reconciliation**:
+   The system provides on-demand verification endpoints (`/api/v1/ledger/verify`, `/wallets/{id}/verify`, `/transactions/{id}/verify`) ensuring zero divergence between wallet balances and sum of ledger credits minus debits.
+
+---
+
+## 4. Concurrency & Idempotency Guarantees
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant ReqA as Request A ($60 Debit)
+    participant ReqB as Request B ($60 Debit)
+    participant DB as PostgreSQL (Initial Balance = $100.00)
+
+    Note over ReqA,ReqB: Both arrive concurrently at the exact same millisecond
+    ReqA->>DB: BEGIN TX; SELECT * FROM wallets WHERE id = ... FOR UPDATE;
+    Note over DB: Lock granted to Request A
+    ReqB->>DB: BEGIN TX; SELECT * FROM wallets WHERE id = ... FOR UPDATE;
+    Note over DB: Request B blocked waiting on Row Lock
+
+    Note over ReqA,DB: Request A executes safely under lock
+    ReqA->>DB: Balance ($100) >= $60 -> Update balance to $40
+    ReqA->>DB: Insert Ledger Entries ($60 Debit, $60 Credit)
+    ReqA->>DB: COMMIT TX;
+    Note over DB: Lock released! Request A completes (HTTP 200 OK)
+
+    Note over ReqB,DB: Lock now acquired by Request B
+    DB-->>ReqB: Returns updated wallet row (Balance = $40.00)
+    ReqB->>ReqB: Balance ($40.00) < $60.00 -> Fails Invariant Check!
+    ReqB->>DB: ROLLBACK TX;
+    Note over ReqB: Request B rejected with INSUFFICIENT_BALANCE (HTTP 409)
+```
+
+1. **Pessimistic Row-Level Locking (`SELECT ... FOR UPDATE`)**:
+   - All balance-altering operations (debit, credit, refund) acquire an exclusive database row lock using `_walletRepository.GetByIdForUpdateAsync(walletId, ct)` inside an atomic database transaction (`_unitOfWork.BeginTransactionAsync(ct)`).
+   - Under heavy concurrent contention against a low-balance wallet, debits serialize deterministically. Excess debits are rejected with HTTP 409 (`INSUFFICIENT_BALANCE`).
+
+2. **Post-Lock Idempotency Verification**:
+   - Because concurrent duplicate requests with the same `Idempotency-Key` may queue on the row lock while the initial request commits, services perform a **post-lock idempotency check** immediately after lock acquisition. If already processed by the predecessor, the transaction immediately rolls back and returns the cached `TransactionResponse`.
+
+3. **SHA-256 Request Fingerprinting**:
+   - Computes a SHA-256 digest of payload fields (`Amount`, `Currency`, `Description`, `Metadata`). Reusing an idempotency key with an altered payload triggers an immediate HTTP 409 (`IDEMPOTENCY_CONFLICT`).
+
+4. **Anti-Double-Click Guard**:
+   - Unkeyed rapid mutation requests are fingerprinted in memory. Repeated requests targeting the same wallet within a 3-second window are rejected with HTTP 429 (`DUPLICATE_REQUEST`).
+
+5. **Deterministic Business Keys**:
+   - When clients supply an external `referenceId` (e.g. order ID), the service constructs `"{action}:{walletId}:{referenceId}"` to avoid duplicate charges even without UUID keys.
+
+---
+
+## 5. Project Structure
 
 ```
 PaymentLedgerService/
-├── src/
-│   ├── PaymentLedger.Api/              # ASP.NET Core Web API
-│   │   ├── Controllers/               # UsersController, WalletsController
-│   │   ├── Middleware/                # CorrelationIdMiddleware, GlobalExceptionHandlerMiddleware
-│   │   ├── Filters/                   # StandardApiResponseFilter
-│   │   ├── Extensions/                # Dependency injection & service configuration
-│   │   └── Program.cs                 # Host builder, Serilog, middleware pipeline
-│   │
-│   ├── PaymentLedger.Business/         # Business Logic & Validation Layer
-│   │   ├── Services/                  # UserBusinessService, WalletBusinessService
-│   │   ├── Models/                    # Consolidated Per-API Models (UserModels.cs, WalletModels.cs)
-│   │   ├── Common/                    # Centralized IdempotencyService, DateTimeProvider
-│   │   ├── Exceptions/                # ValidationException, DomainException, ExceptionToResponseMapper
-│   │   └── DependencyInjection.cs     # Business layer service registration
-│   │
-│   ├── PaymentLedger.Repository/       # Data Access & Persistence Layer
-│   │   ├── Entities/                  # User, Wallet, Transaction, LedgerEntry, IdempotencyRequest
-│   │   ├── Persistence/               # AppDbContext, Configurations (EF Core mapping), Migrations
-│   │   ├── Repositories/              # UserRepository, WalletRepository, TransactionRepository, etc.
-│   │   ├── Abstractions/              # IUserRepository, IWalletRepository, IUnitOfWork, etc.
-│   │   ├── Seeding/                   # TreasuryWalletSeeder
-│   │   └── DependencyInjection.cs     # Persistence & DbContext registration
-│   │
-│   └── PaymentLedger.Shared/           # Cross-Cutting Shared Libraries
-│       ├── Common/                    # ApiResponse<T>, ErrorResponse, PagedResponse<T>, ErrorDetail
-│       ├── Constants/                 # ErrorCodes
-│       └── Correlation/               # CorrelationContext, ICorrelationIdProvider
+├── docs/
+│   ├── ARCHITECTURE.md                 # Complete Mermaid diagrams, workflows, and schema
+│   └── API_SAMPLES.md                  # Comprehensive cURL requests and JSON responses
 │
-└── tests/
-    ├── PaymentLedger.UnitTests/         # 137 tests: Business services, idempotency, edge cases, validations
-    ├── PaymentLedger.ArchitectureTests/ # 7 tests: Enforcing strict Api -> Business -> Repository boundaries
-    └── PaymentLedger.IntegrationTests/  # 9 tests: Real PostgreSQL Testcontainers integration & concurrency tests
+├── src/
+│   ├── PaymentLedger.Api/              # Presentation Tier
+│   │   ├── Controllers/               # UsersController, WalletsController, TransactionsController, LedgerController
+│   │   ├── Middleware/                # CorrelationIdMiddleware, GlobalExceptionHandlerMiddleware
+│   │   ├── Filters/                   # ApiResponseCorrelationFilter
+│   │   ├── Extensions/                # ServiceCollectionExtensions (DI, CORS, Swagger)
+│   │   └── Program.cs                 # App bootstrap, Serilog config, pipeline configuration
+│   │
+│   ├── PaymentLedger.Business/         # Business & Financial Orchestration Tier
+│   │   ├── Services/                  # UserBusinessService, WalletBusinessService, TransactionBusinessService
+│   │   ├── Models/                    # Consolidated Per-API Models (UserModels.cs, WalletModels.cs, TransactionModels.cs)
+│   │   ├── Common/                    # IdempotencyService, SystemDateTimeProvider
+│   │   ├── Exceptions/                # ValidationException, ExceptionToResponseMapper
+│   │   └── DependencyInjection.cs     # AddBusiness() DI extension
+│   │
+│   ├── PaymentLedger.Repository/       # Data Access & Persistence Tier
+│   │   ├── Entities/                  # User, Wallet, Transaction, LedgerEntry, IdempotencyRequest
+│   │   ├── Enums/                     # WalletStatus, TransactionType, TransactionStatus, LedgerEntryType, UserStatus
+│   │   ├── ValueObjects/              # Money
+│   │   ├── Persistence/               # AppDbContext, Configurations/ (EF Core fluent mappings), Migrations/
+│   │   ├── Repositories/              # UserRepository, WalletRepository, TransactionRepository, LedgerRepository, IdempotencyRepository
+│   │   ├── Abstractions/              # IUnitOfWork, IAppDbContext, repository interfaces, IDateTimeProvider
+│   │   ├── Seeding/                   # TreasuryWalletSeeder (seeds Treasury user & multi-currency wallets)
+│   │   └── DependencyInjection.cs     # AddRepository() DI extension
+│   │
+│   └── PaymentLedger.Shared/           # Cross-Cutting Shared Contracts
+│       ├── Responses/                 # ApiResponse<T>, ErrorResponse, PagedResponse<T>, IApiResponse
+│       ├── Constants/                 # ErrorCodes
+│       └── Context/                   # CorrelationContext, ICorrelationIdProvider
+│
+├── tests/
+│   ├── PaymentLedger.UnitTests/         # 183 tests: Invariants, business edge cases, concurrency & idempotency
+│   ├── PaymentLedger.ArchitectureTests/ # 7 tests: NetArchTest enforcing strict layer boundaries
+│   └── PaymentLedger.IntegrationTests/  # 9 tests: Real PostgreSQL Testcontainers integration & concurrency tests
+│
+├── PaymentLedger.UI/                   # Angular 17.3 frontend with Tailwind CSS
+│   ├── proxy.conf.json                # Dev proxy routing /api requests to backend
+│   └── src/app/
+│       ├── core/                      # Interceptors, models, services (api.service, user.service, wallet.service)
+│       ├── features/                  # dashboard, users, wallets (wallet-details, burst/concurrency tester)
+│       └── shared/                    # Layout and reusable UI components
+│
+└── PaymentLedger.postman_collection.json # Full Postman v2.1.0 collection with test scripts & variables
 ```
 
 ---
 
-## Implemented Features & Endpoints
+## 6. Quick Start Guide
 
-### 1. User Management
-- `POST /api/v1/users`: Create user with unique email validation.
-- `GET /api/v1/users`: Paginated user listing with search query support.
-- `GET /api/v1/users/{id}`: Retrieve user details by ID.
-- `PUT /api/v1/users/{id}`: Update user name and email.
-- `DELETE /api/v1/users/{id}`: Delete user (prevents deletion if active wallets exist).
+### Option A: Docker Compose (Full-Stack - Recommended)
 
-### 2. Wallet Lifecycle Management
-- `POST /api/v1/wallets`: Create currency-specific wallet for active users.
-- `GET /api/v1/wallets/{id}`: Retrieve wallet metadata and status.
-- `GET /api/v1/wallets/{id}/balance`: Query real-time wallet balance.
-- `GET /api/v1/wallets?userId={userId}`: Query all wallets belonging to a user.
-- `PATCH /api/v1/wallets/{id}/block`: Block wallet from financial transactions.
-- `PATCH /api/v1/wallets/{id}/unblock`: Unblock wallet.
-- `PATCH /api/v1/wallets/{id}/close`: Close empty wallet (enforces zero-balance invariant).
-
-### 3. Financial Transactions & Double-Entry Ledger
-- `POST /api/v1/wallets/{id}/credit`: Credit funds to user wallet from System Treasury with balanced double-entry ledger entries.
-- `POST /api/v1/wallets/{id}/debit`: Debit funds from user wallet to System Treasury using pessimistic row locking (`SELECT ... FOR UPDATE`) and real-time balance validation.
-
-### 4. Refund & Auditability (Phase 4)
-- `POST /api/v1/transactions/{id}/refund`: Process full or partial refunds for debit transactions with transaction reference linking, user wallet crediting, and balanced double-entry ledger entries (Treasury Debit, User Credit).
-- `GET /api/v1/transactions/{id}`: Detailed transaction lookup including child double-entry ledger records and linked refund summaries.
-- `GET /api/v1/transactions/{id}/verify`: Per-transaction consistency audit verifying `TotalDebits == TotalCredits == Transaction.Amount`.
-- `GET /api/v1/wallets/{id}/transactions`: Server-side paginated transaction history with optional filtering by type, status, and date range.
-- `GET /api/v1/wallets/{id}/verify`: Wallet balance reconciliation verifying `wallet.Balance == Sum(Credits) - Sum(Debits)`.
-- `POST /api/v1/ledger/verify` / `GET /api/v1/ledger/verify`: System-wide double-entry consistency verification auditing all accounts and transactions.
-
-### 5. Centralized Idempotency Engine (`IIdempotencyService`)
-- **Header-Based Idempotency**: Evaluates `Idempotency-Key` (via header or request payload) and enforces SHA-256 payload fingerprinting.
-- **Deterministic Business Keys**: Supports optional `ReferenceId` (e.g. order ID, external payment reference) constructing `"{action}:{walletId}:{referenceId}"` to guarantee zero double-spend even if client UUID generation fails.
-- **Anti-Double-Click Guard**: Memory-cached request fingerprinting (`SHA256(action:walletId:amount)`) rejecting rapid duplicate clicks within a 3-second throttle window with HTTP 429 (`DUPLICATE_REQUEST`).
-- **Conflict Detection**: Throws `IDEMPOTENCY_CONFLICT` (409) if an idempotency key is reused with a different payload, and `CONCURRENCY_CONFLICT` (409) if an identical mutation is already being processed concurrently.
-
-### 6. Observability & Global Exception Handling
-- **Serilog Logging**: Structured console logging and daily rolling file logs (`logs/payment-ledger-.log`).
-- **Correlation Tracking**: `CorrelationIdMiddleware` extracts or generates `X-Correlation-ID`, populating Serilog `LogContext`, response headers, and ambient `CorrelationContext.Current`.
-- **Standardized Response Envelopes**: All client and server errors are trapped by `GlobalExceptionHandlerMiddleware` and converted into standardized `ErrorResponse` envelopes without stack trace leakage:
-  - `ValidationException` &rarr; `400 Bad Request` with field-level `ErrorDetail` objects.
-  - `DomainException` (`USER_NOT_FOUND`, `WALLET_NOT_FOUND`, `TRANSACTION_NOT_FOUND`) &rarr; `404 Not Found`.
-  - `DomainException` (`INSUFFICIENT_BALANCE`, `IDEMPOTENCY_CONFLICT`, `CONCURRENCY_CONFLICT`) &rarr; `409 Conflict`.
-  - `DomainException` (`TRANSACTION_NOT_REFUNDABLE`, `REFUND_AMOUNT_EXCEEDED`, `CURRENCY_MISMATCH`, domain constraint violation) &rarr; `400 Bad Request`.
-  - Unhandled / System `Exception` &rarr; `500 Internal Server Error` with generic safe error message and error code `INTERNAL_SERVER_ERROR`.
-
----
-
-## Standard Response Envelopes
-
-All API endpoints return consistent, standardized JSON envelopes.
-
-### Success Response (`ApiResponse<T>`)
-```json
-{
-  "success": true,
-  "message": "Wallet debited successfully.",
-  "data": {
-    "transactionId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "amount": 50.00,
-    "currency": "USD",
-    "status": "Completed"
-  },
-  "correlationId": "4f9d6c7b-3b7c-482f-bf2a-9e12613d9a18"
-}
-```
-
-### Error Response (`ErrorResponse`)
-```json
-{
-  "success": false,
-  "message": "Insufficient balance to debit.",
-  "data": null,
-  "errors": [
-    {
-      "code": "INSUFFICIENT_BALANCE",
-      "field": null,
-      "message": "Insufficient balance to debit."
-    }
-  ],
-  "correlationId": "4f9d6c7b-3b7c-482f-bf2a-9e12613d9a18"
-}
-```
-
----
-
-## Prerequisites
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) with Docker Compose
-- Optional (for local runs without Docker): PostgreSQL 16+
-
----
-
-## Run Locally with .NET CLI
-
-1. Ensure PostgreSQL is running and update the connection string in `src/PaymentLedger.Api/appsettings.Development.json`.
-2. Run the API:
+Runs PostgreSQL 17, Web API (port 8080), and Angular UI (port 4200):
 
 ```powershell
+# Build and launch all services in background
+docker compose up -d --build
+
+# View container logs
+docker compose logs -f
+
+# Stop all services
+docker compose down
+
+# Stop and wipe database volume
+docker compose down -v
+```
+
+Endpoints:
+- **Angular UI**: `http://localhost:4200`
+- **Web API**: `http://localhost:8080`
+- **Swagger UI**: `http://localhost:8080/swagger`
+- **Health Check**: `http://localhost:8080/health`
+
+---
+
+### Option B: Local .NET CLI Backend
+
+Requires a local PostgreSQL instance (configure connection in `src/PaymentLedger.Api/appsettings.Development.json`):
+
+```powershell
+# Restore and run API
 dotnet run --project src/PaymentLedger.Api
 ```
 
-On startup, the application automatically:
-- Applies pending EF Core migrations.
-- Seeds the system Treasury user and Treasury wallets (`USD`, `EUR`, `GBP`).
-
-Default Local URLs:
+Endpoints:
 - **HTTP**: `http://localhost:5275`
 - **HTTPS**: `https://localhost:7155`
 - **Swagger UI**: `http://localhost:5275/swagger`
@@ -192,116 +253,235 @@ Default Local URLs:
 
 ---
 
-## Run Locally with Docker Compose
+### Option C: Angular Frontend Development Server
 
-Start the full stack (API + PostgreSQL):
-
-```powershell
-docker compose up --build
-```
-
-Endpoints:
-- **API Base**: `http://localhost:8080`
-- **Swagger UI**: `http://localhost:8080/swagger`
-- **Health Check**: `http://localhost:8080/health`
-
-Stop the stack:
+Inside `PaymentLedger.UI/`:
 
 ```powershell
-docker compose down
-```
+# Install npm dependencies
+npm install
 
-Stop and clear persisted database volumes:
+# Start development server with API proxying (http://localhost:4200)
+npm start
 
-```powershell
-docker compose down -v
+# Build production bundle
+npm run build
 ```
 
 ---
 
-## Database Migrations
+## 7. API Endpoints Reference
 
-Migrations and entity configurations reside inside `PaymentLedger.Repository`. Execute migration commands targeting this project:
+### User Management (`/api/v1/users`)
+- `POST /api/v1/users`: Create user with unique email validation.
+- `GET /api/v1/users`: Paginated user listing with search query support.
+- `GET /api/v1/users/{id}`: Retrieve user details by ID.
+- `PUT /api/v1/users/{id}`: Update user name and email.
+- `DELETE /api/v1/users/{id}`: Delete user (blocks deletion if active wallets exist).
 
-Add a new migration:
+### Wallet Lifecycle (`/api/v1/wallets`)
+- `POST /api/v1/wallets`: Create currency-specific wallet for active user.
+- `GET /api/v1/wallets/{id}`: Retrieve wallet metadata and status.
+- `GET /api/v1/wallets/{id}/balance`: Query real-time wallet balance.
+- `GET /api/v1/wallets?userId={userId}`: Query all wallets belonging to a user.
+- `PATCH /api/v1/wallets/{id}/block`: Block wallet from financial transactions.
+- `PATCH /api/v1/wallets/{id}/unblock`: Unblock wallet.
+- `PATCH /api/v1/wallets/{id}/close`: Close empty wallet (enforces zero-balance invariant).
 
-```powershell
-dotnet ef migrations add <MigrationName> --project src/PaymentLedger.Repository --startup-project src/PaymentLedger.Api --output-dir Persistence/Migrations
-```
+### Financial Mutations (`/api/v1/wallets`)
+- `POST /api/v1/wallets/{id}/credit`: Deposit funds from System Treasury with balanced double-entry ledger entries.
+- `POST /api/v1/wallets/{id}/debit`: Debit funds to System Treasury with pessimistic row locking (`SELECT ... FOR UPDATE`).
+- `GET /api/v1/wallets/{id}/transactions`: Server-side paginated transaction history with type/status/date filtering.
 
-Apply migrations manually:
-
-```powershell
-dotnet ef database update --project src/PaymentLedger.Repository --startup-project src/PaymentLedger.Api
-```
-
-Remove the latest unapplied migration:
-
-```powershell
-dotnet ef migrations remove --project src/PaymentLedger.Repository --startup-project src/PaymentLedger.Api
-```
-
----
-
-## Concurrency & Data Integrity Guarantees
-
-1. **Pessimistic Row Locking (`SELECT ... FOR UPDATE`)**:
-   - Financial mutations execute inside an atomic database transaction using row-level locking on the target wallet.
-   - Under heavy concurrent debit contention against a low-balance wallet, transactions are strictly serialized:
-     - Requests exceeding remaining balance are rejected with HTTP 409 (`INSUFFICIENT_BALANCE`).
-     - The wallet balance is guaranteed to never drop below zero.
-     - Double-entry ledger entries remain fully balanced.
-
-2. **Thread-Safe Anti-Double-Click Guard**:
-   - Centralized memory-throttled anti-double-click protection synchronizes incoming concurrent requests, ensuring only a single thread can execute an identical unkeyed mutation within the 3-second throttle window, returning HTTP 429 (`DUPLICATE_REQUEST`) to parallel duplicates.
-
-3. **Concurrent Idempotency Deduplication**:
-   - Multiple parallel requests carrying the same `Idempotency-Key` serialize safely: the initial request executes the transaction while concurrent duplicates either await/receive the cached response or trigger conflict/duplicate protections, guaranteeing zero double-debit.
+### Refunds & Ledger Audits (`/api/v1/transactions`, `/api/v1/ledger`)
+- `POST /api/v1/transactions/{id}/refund`: Process full or partial refund for a debit transaction.
+- `GET /api/v1/transactions/{id}`: Detailed transaction lookup with child double-entry ledger entries.
+- `GET /api/v1/transactions/{id}/verify`: Per-transaction double-entry balance verification.
+- `GET /api/v1/wallets/{id}/verify`: Wallet balance reconciliation against ledger entries.
+- `POST /api/v1/ledger/verify` / `GET /api/v1/ledger/verify`: System-wide cryptographic consistency audit.
 
 ---
 
-## Testing & Quality Gates
+## 8. Sample API Requests & Payloads
 
-Run all test suites across the solution:
+### Credit Wallet (Deposit from Treasury)
+```bash
+curl -X POST "http://localhost:8080/api/v1/wallets/{walletId}/credit" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: credit-usr-1001-topup" \
+  -d '{
+    "amount": 200.00,
+    "currency": "USD",
+    "description": "Initial account deposit",
+    "metadata": "{\"channel\":\"online_banking\"}"
+  }'
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Wallet credited successfully.",
+  "data": {
+    "transactionId": "b47c9e01-2a1d-488f-9a02-23f461879c7b",
+    "transactionCode": "TXN-CR-20260927-B47C9E01",
+    "type": "Credit",
+    "status": "Posted",
+    "amount": 200.00,
+    "currency": "USD",
+    "balanceAfterTransaction": 200.00,
+    "createdAt": "2026-09-27T12:00:00.000Z"
+  },
+  "correlationId": "corr-uuid"
+}
+```
+
+### Debit Wallet (Pessimistic Lock & Idempotent)
+```bash
+curl -X POST "http://localhost:8080/api/v1/wallets/{walletId}/debit" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: debit-order-5501" \
+  -d '{
+    "amount": 50.00,
+    "currency": "USD",
+    "referenceId": "order-5501",
+    "description": "Purchase transaction"
+  }'
+```
+
+**Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "message": "Wallet debited successfully.",
+  "data": {
+    "transactionId": "d821fa91-66c2-4bbf-a29e-1903eef580d2",
+    "transactionCode": "TXN-DB-20260927-D821FA91",
+    "type": "Debit",
+    "status": "Posted",
+    "amount": 50.00,
+    "currency": "USD",
+    "balanceAfterTransaction": 150.00,
+    "createdAt": "2026-09-27T12:05:00.000Z"
+  },
+  "correlationId": "corr-uuid"
+}
+```
+
+> Additional curl requests, error responses (400, 404, 409, 429, 500), and refund flows are available in [docs/API_SAMPLES.md](docs/API_SAMPLES.md).
+
+---
+
+## 9. Postman Collection
+
+A complete, production-ready Postman collection is located at the root of the repository:
+
+**[`PaymentLedger.postman_collection.json`](PaymentLedger.postman_collection.json)**
+
+### Features:
+- Fully compliant with Postman Collection v2.1.0 format.
+- Pre-configured environment variables (`baseUrl`, `userId`, `walletId`, `transactionId`).
+- Automated pre-request scripts generating dynamic `Idempotency-Key` and `X-Correlation-ID` headers.
+- Automated test assertion scripts verifying HTTP status codes, response envelopes, and saving generated IDs for chained workflow execution.
+- 5 organized folders:
+  1. `1. Health & Diagnostics`
+  2. `2. Users`
+  3. `3. Wallets`
+  4. `4. Financial Transactions`
+  5. `5. Refunds & Reconciliations`
+
+---
+
+## 10. Testing & Quality Gates
+
+The test suite enforces full verification across 3 dedicated test projects:
 
 ```powershell
+# Run the entire solution test suite
 dotnet test PaymentLedgerService.sln
 ```
 
-### Test Suites
+### 10.1 Unit Tests
+**183 tests** (fast, in-memory execution):
+- Domain model invariants, money precision, wallet status state machine, and ledger double-entry balancing.
+- Business service orchestration (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`).
+- Idempotency engine verification: SHA-256 fingerprinting, replay of cached transactions, post-lock recheck verification, and multi-threaded anti-double-click guard testing.
+- Refund lifecycle, over-refund guardrails, and transaction reference linking.
+- Controller endpoints and exception-to-response mapping.
 
-- **Unit & Concurrency Tests** (`PaymentLedger.UnitTests` - 179 passed):
-  - Invariants, money precision, wallet status state transitions, and ledger double-entry balancing.
-  - Direct business service logic (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`) and edge case validations.
-  - Multi-threaded concurrency simulation tests verifying `SELECT ... FOR UPDATE` row serialization, zero-negative balance invariants, and idempotency deduplication under parallel execution.
-  - Refund lifecycle, partial and full refunds, over-refund guardrails, and transaction reference tracking.
-  - Wallet balance reconciliation and double-entry consistency audits.
-  - API controller endpoints, pagination, and error response contracts.
-  - `CorrelationIdMiddleware` context lifecycle and whitespace sanitization.
-  - `GlobalExceptionHandlerMiddleware` error code mapping (400, 404, 409, 429, 500) and response streaming safety.
-  - `IdempotencyService` thread synchronization, hashing, and anti-double-click multi-thread isolation.
-  ```powershell
-  dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
-  ```
+```powershell
+dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
+```
 
-- **Architecture Tests** (`PaymentLedger.ArchitectureTests` - 7 passed):
-  - NetArchTest rules enforcing clean 3-tier layer isolation (`Controller -> Business -> Repository`):
-    - `Api` only depends on `Business` and `Shared` (no direct reference to `Repository`).
-    - `Business` only depends on `Repository` and `Shared` (no reference to `Api`).
-    - `Repository` only depends on `Shared` (no reference to `Api` or `Business`).
-    - `Controllers` do not reference Entity Framework Core or database repositories directly.
-    - `Controllers` only depend on `Business` services and interfaces (`IUserBusiness`, `IWalletBusiness`).
-    - All middleware classes reside strictly in `PaymentLedger.Api.Middleware`.
-    - `IIdempotencyService` implementation resides in `PaymentLedger.Business.Common`.
-  ```powershell
-  dotnet test tests/PaymentLedger.ArchitectureTests/PaymentLedger.ArchitectureTests.csproj
-  ```
+### 10.2 Architecture Boundary Tests
+**7 tests** (NetArchTest rules enforcing clean 3-tier layering):
+- `Api` only references `Business` and `Shared` (no direct `Repository` references).
+- `Business` only references `Repository` and `Shared` (no `Api` references).
+- `Repository` only references `Shared` (no `Business` or `Api` references).
+- Controllers never reference Entity Framework Core or database repositories directly.
+- Middlewares reside strictly in `PaymentLedger.Api.Middleware`.
 
-- **Integration Tests** (`PaymentLedger.IntegrationTests` - 9 tests):
-  - Real PostgreSQL container tests via Testcontainers (`[DockerFact]`).
-  - True database transaction concurrency tests verifying `SELECT ... FOR UPDATE` row locking and non-negative balance enforcement under concurrent HTTP debits.
-  - Idempotency deduplication integration tests.
-  - Database schema migration, idempotent treasury seeding, and health checks.
-  ```powershell
-  dotnet test tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.csproj
-  ```
+```powershell
+dotnet test tests/PaymentLedger.ArchitectureTests/PaymentLedger.ArchitectureTests.csproj
+```
+
+### 10.3 Integration & Concurrency Tests
+**9 tests** (Real PostgreSQL container execution via Testcontainers):
+- True database transaction concurrency: 10 concurrent HTTP debits against a low-balance wallet verifying `SELECT ... FOR UPDATE` row locking prevents negative balances.
+- Concurrent deduplication: 5 parallel requests with identical `Idempotency-Key` execute exactly once without double-debiting.
+- Database schema migration, idempotent treasury seeding, and health checks.
+
+```powershell
+dotnet test tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.csproj
+```
+
+---
+
+## 11. Database Migrations
+
+Migrations and entity configurations reside inside `PaymentLedger.Repository`. Always specify both `--project` and `--startup-project`:
+
+```powershell
+# Add a new migration
+dotnet ef migrations add <MigrationName> `
+  --project src/PaymentLedger.Repository `
+  --startup-project src/PaymentLedger.Api `
+  --output-dir Persistence/Migrations
+
+# Apply pending migrations to the configured database
+dotnet ef database update `
+  --project src/PaymentLedger.Repository `
+  --startup-project src/PaymentLedger.Api
+
+# Generate idempotent SQL script of migrations
+dotnet ef migrations script `
+  --project src/PaymentLedger.Repository `
+  --startup-project src/PaymentLedger.Api `
+  --output migrations.sql
+```
+
+> [!NOTE]
+> On startup, `Program.cs` automatically executes `dbContext.Database.MigrateAsync()` and runs `TreasuryWalletSeeder.SeedAsync()` to ensure migrations and system treasury accounts are created idempotently.
+
+---
+
+## 12. Observability & Error Handling
+
+All client and server errors are trapped by `GlobalExceptionHandlerMiddleware` and converted into standardized `ErrorResponse` envelopes without stack trace leakage:
+
+| Error Code | HTTP Status | Description |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 Bad Request | Request model validation failed (missing or invalid fields) |
+| `CURRENCY_MISMATCH` | 400 Bad Request | Target wallet currency does not match transaction currency |
+| `WALLET_NOT_ACTIVE` | 400 Bad Request | Target or treasury wallet is not in Active status |
+| `TRANSACTION_NOT_REFUNDABLE` | 400 Bad Request | Transaction cannot be refunded (not a debit, or already refunded) |
+| `REFUND_AMOUNT_EXCEEDED` | 400 Bad Request | Requested refund amount exceeds remaining refundable amount |
+| `USER_NOT_FOUND` | 404 Not Found | Specified user ID does not exist |
+| `WALLET_NOT_FOUND` | 404 Not Found | Specified wallet ID does not exist |
+| `TRANSACTION_NOT_FOUND` | 404 Not Found | Specified transaction ID does not exist |
+| `INSUFFICIENT_BALANCE` | 409 Conflict | Target wallet lacks sufficient funds for debit operation |
+| `IDEMPOTENCY_CONFLICT` | 409 Conflict | Idempotency key reused with an altered request payload |
+| `CONCURRENCY_CONFLICT` | 409 Conflict | Mutation with this idempotency key is currently processing |
+| `USER_ALREADY_EXISTS` | 409 Conflict | User with this email already exists |
+| `DUPLICATE_REQUEST` | 429 Too Many Requests | Unkeyed request throttled by anti-double-click guard |
+| `INTERNAL_SERVER_ERROR` | 500 Internal Server Error | Unhandled server exception (stack trace redacted) |

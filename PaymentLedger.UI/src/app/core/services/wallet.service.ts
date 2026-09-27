@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiResponse } from '../models/api-response.model';
@@ -15,6 +15,11 @@ export class WalletService {
 
   createWallet(request: CreateWalletRequest): Observable<ApiResponse<Wallet>> {
     return this.http.post<ApiResponse<Wallet>>(this.baseUrl, request);
+  }
+
+  getWalletsByUserId(userId: string): Observable<ApiResponse<Wallet[]>> {
+    const params = new HttpParams().set('userId', userId);
+    return this.http.get<ApiResponse<Wallet[]>>(this.baseUrl, { params });
   }
 
   getWallet(walletId: string): Observable<ApiResponse<Wallet>> {

@@ -33,6 +33,7 @@ var app = builder.Build();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 app.UseSerilogRequestLogging();
+app.UseCors();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

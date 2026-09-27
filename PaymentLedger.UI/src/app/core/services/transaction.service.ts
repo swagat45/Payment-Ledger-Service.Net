@@ -12,12 +12,12 @@ export class TransactionService {
   private http = inject(HttpClient);
   private baseUrl = environment.apiUrl;
 
-  getWalletTransactions(walletId: string, pageNumber: number = 1, pageSize: number = 20): Observable<ApiResponse<PagedResponse<Transaction>>> {
+  getWalletTransactions(walletId: string, pageNumber: number = 1, pageSize: number = 20): Observable<PagedResponse<Transaction>> {
     const params = new HttpParams()
       .set('pageNumber', pageNumber.toString())
       .set('pageSize', pageSize.toString());
       
-    return this.http.get<ApiResponse<PagedResponse<Transaction>>>(`${this.baseUrl}/wallets/${walletId}/transactions`, { params });
+    return this.http.get<PagedResponse<Transaction>>(`${this.baseUrl}/wallets/${walletId}/transactions`, { params });
   }
 
   getTransactionDetails(transactionId: string): Observable<ApiResponse<Transaction>> {

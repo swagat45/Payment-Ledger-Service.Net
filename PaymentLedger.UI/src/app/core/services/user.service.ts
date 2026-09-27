@@ -12,7 +12,7 @@ export class UserService {
   private http = inject(HttpClient);
   private baseUrl = `${environment.apiUrl}/users`;
 
-  getUsers(pageNumber: number = 1, pageSize: number = 20, searchText?: string): Observable<ApiResponse<PagedResponse<User>>> {
+  getUsers(pageNumber: number = 1, pageSize: number = 20, searchText?: string): Observable<PagedResponse<User>> {
     let params = new HttpParams()
       .set('pageNumber', pageNumber.toString())
       .set('pageSize', pageSize.toString());
@@ -21,7 +21,7 @@ export class UserService {
       params = params.set('searchText', searchText);
     }
 
-    return this.http.get<ApiResponse<PagedResponse<User>>>(this.baseUrl, { params });
+    return this.http.get<PagedResponse<User>>(this.baseUrl, { params });
   }
 
   getUserById(userId: string): Observable<ApiResponse<User>> {

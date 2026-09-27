@@ -17,6 +17,16 @@ public static class ServiceCollectionExtensions
         services.AddHealthChecks();
         services.AddHttpContextAccessor();
         services.AddScoped<ICorrelationIdProvider, CorrelationIdProvider>();
+        services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .WithExposedHeaders("X-Correlation-ID");
+            });
+        });
 
         return services;
     }

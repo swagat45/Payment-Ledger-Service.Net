@@ -12,8 +12,8 @@ export interface ApiResponse<T> {
   correlationId: string;
 }
 
-export interface PagedResponse<T> {
-  items: T[];
+export interface PagedResponse<T> extends ApiResponse<T[]> {
+  items?: T[];
   totalCount: number;
   pageNumber: number;
   pageSize: number;

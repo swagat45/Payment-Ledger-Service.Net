@@ -205,6 +205,75 @@ public class WalletBusinessServiceTests
         Assert.Equal(2, _ledgerRepository.Entries.Count);
     }
 
+    [Fact]
+    public async Task DebitWalletAsync_WhenPostLockCheckFindsProcessedIdempotency_RollsBackAndReturnsCached()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Credit(100m, _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var cached = new TransactionResponse(
+            Guid.NewGuid(), "TX-POSTLOCK", "Debit", "Posted",
+            wallet.Id, Guid.NewGuid(), 25m, "USD", "idem-key", null, null, 75m, _dateTimeProvider.UtcNow);
+
+        _idempotencyService.NextCheckResult = IdempotencyCheckResult<TransactionResponse>.None();
+        _idempotencyService.PostLockCheckResult = IdempotencyCheckResult<TransactionResponse>.Processed(cached);
+
+        var request = new DebitWalletRequest(25m, "USD", "idem-key");
+        var response = await service.DebitWalletAsync(wallet.Id, request, null);
+
+        Assert.Equal("TX-POSTLOCK", response.TransactionCode);
+        Assert.True(_unitOfWork.TransactionRolledBack);
+        Assert.False(_unitOfWork.TransactionCommitted);
+    }
+
+    [Fact]
+    public async Task DebitWalletAsync_WhenWalletBlocked_ThrowsDomainException()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Credit(100m, _dateTimeProvider.UtcNow);
+        wallet.Block(_dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var request = new DebitWalletRequest(25m, "USD", "idem-blocked");
+        var ex = await Assert.ThrowsAsync<DomainException>(() => service.DebitWalletAsync(wallet.Id, request, null));
+
+        Assert.Equal(ErrorCodes.WalletNotActive, ex.ErrorCode);
+        Assert.True(_unitOfWork.TransactionRolledBack);
+    }
+
+    [Fact]
+    public async Task DebitWalletAsync_WhenCurrencyMismatch_ThrowsDomainException()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Credit(100m, _dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var request = new DebitWalletRequest(25m, "INR", "idem-mismatch");
+        var ex = await Assert.ThrowsAsync<DomainException>(() => service.DebitWalletAsync(wallet.Id, request, null));
+
+        Assert.Equal(ErrorCodes.CurrencyMismatch, ex.ErrorCode);
+        Assert.True(_unitOfWork.TransactionRolledBack);
+    }
+
+    [Fact]
+    public async Task CreditWalletAsync_WhenWalletBlocked_ThrowsDomainException()
+    {
+        var service = CreateService();
+        var wallet = Wallet.Create(Guid.NewGuid(), "USD", _dateTimeProvider.UtcNow);
+        wallet.Block(_dateTimeProvider.UtcNow);
+        await _walletRepository.AddAsync(wallet);
+
+        var request = new CreditWalletRequest(50m, "USD", "idem-credit-blocked");
+        var ex = await Assert.ThrowsAsync<DomainException>(() => service.CreditWalletAsync(wallet.Id, request, null));
+
+        Assert.Equal(ErrorCodes.WalletNotActive, ex.ErrorCode);
+        Assert.True(_unitOfWork.TransactionRolledBack);
+    }
+
     #region Fakes
 
     private sealed class FakeUserRepository : IUserRepository
@@ -371,7 +440,9 @@ public class WalletBusinessServiceTests
 
     private sealed class FakeIdempotencyService : IIdempotencyService
     {
+        private int _checkCount;
         public IdempotencyCheckResult<TransactionResponse>? NextCheckResult { get; set; }
+        public IdempotencyCheckResult<TransactionResponse>? PostLockCheckResult { get; set; }
 
         public string ResolveKey(string? headerKey, string action, Guid walletId, string? referenceId, decimal? amount = null) =>
             !string.IsNullOrWhiteSpace(headerKey) ? headerKey : $"key-{walletId}";
@@ -380,8 +451,16 @@ public class WalletBusinessServiceTests
 
         public string ComputeHash<T>(T payload) => "fake-hash";
 
-        public Task<IdempotencyCheckResult<TResult>> CheckAsync<TResult>(string key, string endpoint, string hash, CancellationToken ct) =>
-            Task.FromResult((IdempotencyCheckResult<TResult>?)(object?)NextCheckResult ?? IdempotencyCheckResult<TResult>.None());
+        public Task<IdempotencyCheckResult<TResult>> CheckAsync<TResult>(string key, string endpoint, string hash, CancellationToken ct)
+        {
+            _checkCount++;
+            if (_checkCount >= 2 && PostLockCheckResult != null)
+            {
+                return Task.FromResult((IdempotencyCheckResult<TResult>?)(object?)PostLockCheckResult ?? IdempotencyCheckResult<TResult>.None());
+            }
+
+            return Task.FromResult((IdempotencyCheckResult<TResult>?)(object?)NextCheckResult ?? IdempotencyCheckResult<TResult>.None());
+        }
 
         public Task SaveAsync<TResult>(string key, string endpoint, string hash, TResult response, int statusCode, CancellationToken ct) =>
             Task.CompletedTask;

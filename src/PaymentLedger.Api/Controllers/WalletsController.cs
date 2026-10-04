@@ -2,11 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using PaymentLedger.Business.Models;
 using PaymentLedger.Business.Services;
 using PaymentLedger.Shared.Responses;
+using PaymentLedger.Shared.Constants;
+using Microsoft.AspNetCore.Authorization;
 
 namespace PaymentLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/wallets")]
+[Authorize(Policy = SecurityConstants.Policies.ReadWallet)]
 public class WalletsController : ControllerBase
 {
     private readonly IWalletBusinessService _walletService;
@@ -17,6 +20,7 @@ public class WalletsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = SecurityConstants.Policies.WriteWallet)]
     public async Task<IActionResult> CreateWallet([FromBody] CreateWalletRequest request, CancellationToken ct)
     {
         var wallet = await _walletService.CreateWalletAsync(request, ct);
@@ -68,6 +72,7 @@ public class WalletsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyCollection<WalletResponse>>.Ok(wallets, "Wallets retrieved successfully."));
     }
 
+    [Authorize(Policy = SecurityConstants.Policies.WriteWallet)]
     [HttpPatch("{id}/block")]
     public async Task<IActionResult> BlockWallet(Guid id, CancellationToken ct)
     {
@@ -85,6 +90,7 @@ public class WalletsController : ControllerBase
         return Ok(ApiResponse<WalletResponse>.Ok(wallet, "Wallet blocked successfully."));
     }
 
+    [Authorize(Policy = SecurityConstants.Policies.WriteWallet)]
     [HttpPatch("{id}/unblock")]
     public async Task<IActionResult> UnblockWallet(Guid id, CancellationToken ct)
     {
@@ -102,6 +108,7 @@ public class WalletsController : ControllerBase
         return Ok(ApiResponse<WalletResponse>.Ok(wallet, "Wallet unblocked successfully."));
     }
 
+    [Authorize(Policy = SecurityConstants.Policies.WriteWallet)]
     [HttpPatch("{id}/close")]
     public async Task<IActionResult> CloseWallet(Guid id, CancellationToken ct)
     {
@@ -120,6 +127,7 @@ public class WalletsController : ControllerBase
     }
 
     [HttpPost("{id}/credit")]
+    [Authorize(Policy = SecurityConstants.Policies.WriteWallet)]
     public async Task<IActionResult> CreditWallet(
         Guid id,
         [FromBody] CreditWalletRequest request,
@@ -138,6 +146,7 @@ public class WalletsController : ControllerBase
     }
 
     [HttpPost("{id}/debit")]
+    [Authorize(Policy = SecurityConstants.Policies.WriteWallet)]
     public async Task<IActionResult> DebitWallet(
         Guid id,
         [FromBody] DebitWalletRequest request,
@@ -182,3 +191,5 @@ public class WalletsController : ControllerBase
             "Wallet consistency verification completed."));
     }
 }
+
+

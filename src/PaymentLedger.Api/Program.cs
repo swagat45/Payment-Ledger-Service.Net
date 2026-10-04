@@ -24,7 +24,7 @@ builder.Host.UseSerilog((context, services, configuration) =>
 
 var disableHttpsRedirection = builder.Configuration.GetValue<bool>("DisableHttpsRedirection");
 
-builder.Services.AddApiServices();
+builder.Services.AddApiServices(builder.Configuration);
 builder.Services.AddBusiness();
 builder.Services.AddRepository(builder.Configuration);
 
@@ -34,6 +34,9 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseCors();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

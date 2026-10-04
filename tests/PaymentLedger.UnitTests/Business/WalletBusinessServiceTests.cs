@@ -8,6 +8,7 @@ using PaymentLedger.Repository.Enums;
 using PaymentLedger.Repository.Exceptions;
 using PaymentLedger.Repository.Repositories;
 using PaymentLedger.Shared.Constants;
+using PaymentLedger.Shared.Context;
 
 namespace PaymentLedger.UnitTests.Business;
 
@@ -20,6 +21,7 @@ public class WalletBusinessServiceTests
     private readonly FakeIdempotencyService _idempotencyService = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly FakeDateTimeProvider _dateTimeProvider = new(DateTimeOffset.UtcNow);
+    private readonly FakeCurrentUserService _currentUserService = new();
 
     private WalletBusinessService CreateService() =>
         new(
@@ -29,7 +31,8 @@ public class WalletBusinessServiceTests
             _ledgerRepository,
             _idempotencyService,
             _unitOfWork,
-            _dateTimeProvider);
+            _dateTimeProvider,
+            _currentUserService);
 
     [Fact]
     public async Task CreateWalletAsync_WithValidData_CreatesWallet()
@@ -504,5 +507,19 @@ public class WalletBusinessServiceTests
         public FakeDateTimeProvider(DateTimeOffset utcNow) => UtcNow = utcNow;
     }
 
+    private sealed class FakeCurrentUserService : ICurrentUserService
+    {
+        public bool IsAuthenticated => false;
+        public Guid? UserId => Guid.Empty;
+        public string Email => string.Empty;
+        public string Role => string.Empty;
+        public IReadOnlyCollection<string> Scopes => Array.Empty<string>();
+        public bool IsAdmin => false;
+        public bool HasScope(string scope) => false;
+    }
+
     #endregion
 }
+
+
+

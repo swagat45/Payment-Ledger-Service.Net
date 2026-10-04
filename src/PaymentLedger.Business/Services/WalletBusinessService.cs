@@ -8,6 +8,7 @@ using PaymentLedger.Repository.Exceptions;
 using PaymentLedger.Repository.Repositories;
 using PaymentLedger.Shared.Constants;
 using PaymentLedger.Shared.Responses;
+using PaymentLedger.Shared.Context;
 
 namespace PaymentLedger.Business.Services;
 
@@ -20,6 +21,7 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
     private readonly IIdempotencyService _idempotencyService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly ICurrentUserService _currentUserService;
 
     public WalletBusinessService(
         IWalletRepository walletRepository,
@@ -28,7 +30,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         ILedgerRepository ledgerRepository,
         IIdempotencyService idempotencyService,
         IUnitOfWork unitOfWork,
-        IDateTimeProvider dateTimeProvider)
+        IDateTimeProvider dateTimeProvider,
+        ICurrentUserService currentUserService)
     {
         _walletRepository = walletRepository;
         _userRepository = userRepository;
@@ -37,6 +40,7 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         _idempotencyService = idempotencyService;
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
+        _currentUserService = currentUserService;
     }
 
     public async Task<WalletResponse> CreateWalletAsync(CreateWalletRequest request, CancellationToken ct = default)
@@ -76,6 +80,10 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         }
 
         var wallet = await _walletRepository.GetByIdAsync(id, ct);
+        if (wallet != null)
+        {
+            EnforceWalletOwnership(wallet);
+        }
         return wallet == null ? null : MapToResponse(wallet);
     }
 
@@ -91,6 +99,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         {
             return null;
         }
+
+        EnforceWalletOwnership(wallet);
 
         return new WalletBalanceResponse(
             wallet.Id,
@@ -125,6 +135,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
             return null;
         }
 
+        EnforceWalletOwnership(wallet);
+
         wallet.Block(_dateTimeProvider.UtcNow);
         _walletRepository.Update(wallet);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -145,6 +157,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
             return null;
         }
 
+        EnforceWalletOwnership(wallet);
+
         wallet.Unblock(_dateTimeProvider.UtcNow);
         _walletRepository.Update(wallet);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -164,6 +178,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         {
             return null;
         }
+
+        EnforceWalletOwnership(wallet);
 
         wallet.Close(_dateTimeProvider.UtcNow);
         _walletRepository.Update(wallet);
@@ -219,6 +235,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
             {
                 throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
             }
+
+            EnforceWalletOwnership(wallet);
 
             var postLockCheck = await _idempotencyService.CheckAsync<TransactionResponse>(
                 idempotencyKey,
@@ -379,6 +397,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
                 throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
             }
 
+            EnforceWalletOwnership(wallet);
+
             var postLockCheck = await _idempotencyService.CheckAsync<TransactionResponse>(
                 idempotencyKey,
                 endpoint,
@@ -511,6 +531,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
             throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
         }
 
+        EnforceWalletOwnership(wallet);
+
         if (request.PageNumber < 1)
         {
             throw new ValidationException("PageNumber", "Page number must be at least 1.");
@@ -582,6 +604,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         {
             throw new DomainException("Wallet not found.", ErrorCodes.WalletNotFound);
         }
+
+        EnforceWalletOwnership(wallet);
 
         var calculatedLedgerBalance = await _ledgerRepository.GetWalletLedgerSumAsync(walletId, ct);
         var discrepancy = decimal.Round(wallet.Balance - calculatedLedgerBalance, 2);
@@ -692,7 +716,7 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         }
     }
 
-    private static WalletResponse MapToResponse(Wallet wallet)
+    private WalletResponse MapToResponse(Wallet wallet)
     {
         return new WalletResponse(
             wallet.Id,
@@ -703,4 +727,15 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
             wallet.CreatedAt,
             wallet.UpdatedAt);
     }
+
+    private void EnforceWalletOwnership(Wallet wallet)
+    {
+        if (_currentUserService.IsAuthenticated && !_currentUserService.IsAdmin && wallet.UserId != _currentUserService.UserId)
+        {
+            throw new DomainException("You do not have permission to access this wallet.", ErrorCodes.Forbidden);
+        }
+    }
 }
+
+
+

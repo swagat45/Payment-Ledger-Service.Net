@@ -2,11 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using PaymentLedger.Business.Models;
 using PaymentLedger.Business.Services;
 using PaymentLedger.Shared.Responses;
+using PaymentLedger.Shared.Constants;
+using Microsoft.AspNetCore.Authorization;
 
 namespace PaymentLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/transactions")]
+[Authorize(Policy = SecurityConstants.Policies.ReadWallet)]
 public class TransactionsController : ControllerBase
 {
     private readonly ITransactionBusinessService _transactionService;
@@ -16,6 +19,7 @@ public class TransactionsController : ControllerBase
         _transactionService = transactionService;
     }
 
+    [Authorize(Policy = SecurityConstants.Policies.AdminLedger)]
     [HttpPost("{id}/refund")]
     public async Task<IActionResult> RefundTransaction(
         Guid id,
@@ -53,6 +57,7 @@ public class TransactionsController : ControllerBase
             "Transaction details retrieved successfully."));
     }
 
+    [Authorize(Policy = SecurityConstants.Policies.AdminLedger)]
     [HttpGet("{id}/verify")]
     public async Task<IActionResult> VerifyTransactionConsistency(Guid id, CancellationToken ct)
     {
@@ -63,3 +68,6 @@ public class TransactionsController : ControllerBase
             "Transaction consistency verification completed."));
     }
 }
+
+
+

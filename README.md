@@ -9,20 +9,21 @@ Production-grade, idempotent digital wallet and double-entry financial ledger sy
 - [System Architecture](#2-system-architecture)
 - [Financial Ledger Principles & Invariants](#3-financial-ledger-principles--invariants)
 - [Concurrency & Idempotency Guarantees](#4-concurrency--idempotency-guarantees)
-- [Project Structure](#5-project-structure)
-- [Quick Start Guide](#6-quick-start-guide)
+- [Security & Authentication](#5-security--authentication)
+- [Project Structure](#6-project-structure)
+- [Quick Start Guide](#7-quick-start-guide)
   - [Option A: Docker Compose (Full-Stack - Recommended)](#option-a-docker-compose-full-stack---recommended)
   - [Option B: Local .NET CLI Backend](#option-b-local-net-cli-backend)
   - [Option C: Angular Frontend Development Server](#option-c-angular-frontend-development-server)
-- [API Endpoints Reference](#7-api-endpoints-reference)
-- [Sample API Requests & Payloads](#8-sample-api-requests--payloads)
-- [Postman Collection](#9-postman-collection)
-- [Testing & Quality Gates](#10-testing--quality-gates)
-  - [Unit Tests (183 tests)](#101-unit-tests)
-  - [Architecture Tests (7 tests)](#102-architecture-boundary-tests)
-  - [Integration & Concurrency Tests (9 tests)](#103-integration--concurrency-tests)
-- [Database Migrations](#11-database-migrations)
-- [Observability & Error Handling](#12-observability--error-handling)
+- [API Endpoints Reference](#8-api-endpoints-reference)
+- [Sample API Requests & Payloads](#9-sample-api-requests--payloads)
+- [Postman Collection](#10-postman-collection)
+- [Testing & Quality Gates](#11-testing--quality-gates)
+  - [Unit Tests (190 tests)](#111-unit-tests)
+  - [Architecture Tests (7 tests)](#112-architecture-boundary-tests)
+  - [Integration & Concurrency Tests (9 tests)](#113-integration--concurrency-tests)
+- [Database Migrations](#12-database-migrations)
+- [Observability & Error Handling](#13-observability--error-handling)
 
 ---
 
@@ -153,7 +154,25 @@ sequenceDiagram
 
 ---
 
-## 5. Project Structure
+## 5. Security & Authentication
+
+The system implements a robust, stateless JWT (JSON Web Token) authentication layer to secure endpoints and enforce resource ownership.
+
+1. **JWT Bearer Authentication**:
+   - Cryptographically signed using HMAC-SHA256.
+   - Includes standard claims (`sub` for UserId, `email`, `role`) and specialized `scope` claims.
+2. **Scope-Based Authorization (Policies)**:
+   - `Policies.ReadWallet`: Requires `read:wallet` scope or `Admin` role. Secures read-only views of wallets and transactions.
+   - `Policies.WriteWallet`: Requires `write:wallet` scope or `Admin` role. Secures mutating actions (Credits, Debits, Blocking).
+   - `Policies.AdminLedger`: Requires `admin:ledger` scope or `Admin` role. Secures high-privilege endpoints (Reconciliation verifications, user administration, transaction refunds).
+3. **Strict Wallet Ownership Enforcement**:
+   - Implemented in the Business layer (`WalletBusinessService`), ensuring users cannot access or mutate wallets they do not own unless they possess `Admin` privileges. Violations throw an automatic `Forbidden` exception.
+4. **Token Generation Endpoint**:
+   - `POST /api/v1/auth/token` allows clients/B2B services to generate signed access tokens with custom scopes to interface securely with the API.
+
+---
+
+## 6. Project Structure
 
 ```
 PaymentLedgerService/
@@ -208,7 +227,7 @@ PaymentLedgerService/
 
 ---
 
-## 6. Quick Start Guide
+## 7. Quick Start Guide
 
 ### Option A: Docker Compose (Full-Stack - Recommended)
 
@@ -270,7 +289,10 @@ npm run build
 
 ---
 
-## 7. API Endpoints Reference
+## 8. API Endpoints Reference
+
+### Authentication (/api/v1/auth)
+- POST /api/v1/auth/token: Issue signed JWT access tokens specifying roles and scopes.
 
 ### User Management (`/api/v1/users`)
 - `POST /api/v1/users`: Create user with unique email validation.
@@ -302,7 +324,7 @@ npm run build
 
 ---
 
-## 8. Sample API Requests & Payloads
+## 9. Sample API Requests & Payloads
 
 ### Credit Wallet (Deposit from Treasury)
 ```bash
@@ -372,7 +394,7 @@ curl -X POST "http://localhost:8080/api/v1/wallets/{walletId}/debit" \
 
 ---
 
-## 9. Postman Collection
+## 10. Postman Collection
 
 A complete, production-ready Postman collection is located at the root of the repository:
 
@@ -392,7 +414,7 @@ A complete, production-ready Postman collection is located at the root of the re
 
 ---
 
-## 10. Testing & Quality Gates
+## 11. Testing & Quality Gates
 
 The test suite enforces full verification across 3 dedicated test projects:
 
@@ -401,8 +423,8 @@ The test suite enforces full verification across 3 dedicated test projects:
 dotnet test PaymentLedgerService.sln
 ```
 
-### 10.1 Unit Tests
-**183 tests** (fast, in-memory execution):
+### 11.1 Unit Tests
+**190 tests** (fast, in-memory execution):
 - Domain model invariants, money precision, wallet status state machine, and ledger double-entry balancing.
 - Business service orchestration (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`).
 - Idempotency engine verification: SHA-256 fingerprinting, replay of cached transactions, post-lock recheck verification, and multi-threaded anti-double-click guard testing.
@@ -413,7 +435,7 @@ dotnet test PaymentLedgerService.sln
 dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
 ```
 
-### 10.2 Architecture Boundary Tests
+### 11.2 Architecture Boundary Tests
 **7 tests** (NetArchTest rules enforcing clean 3-tier layering):
 - `Api` only references `Business` and `Shared` (no direct `Repository` references).
 - `Business` only references `Repository` and `Shared` (no `Api` references).
@@ -425,7 +447,7 @@ dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
 dotnet test tests/PaymentLedger.ArchitectureTests/PaymentLedger.ArchitectureTests.csproj
 ```
 
-### 10.3 Integration & Concurrency Tests
+### 11.3 Integration & Concurrency Tests
 **9 tests** (Real PostgreSQL container execution via Testcontainers):
 - True database transaction concurrency: 10 concurrent HTTP debits against a low-balance wallet verifying `SELECT ... FOR UPDATE` row locking prevents negative balances.
 - Concurrent deduplication: 5 parallel requests with identical `Idempotency-Key` execute exactly once without double-debiting.
@@ -437,7 +459,7 @@ dotnet test tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.
 
 ---
 
-## 11. Database Migrations
+## 12. Database Migrations
 
 Migrations and entity configurations reside inside `PaymentLedger.Repository`. Always specify both `--project` and `--startup-project`:
 
@@ -465,12 +487,14 @@ dotnet ef migrations script `
 
 ---
 
-## 12. Observability & Error Handling
+## 13. Observability & Error Handling
 
 All client and server errors are trapped by `GlobalExceptionHandlerMiddleware` and converted into standardized `ErrorResponse` envelopes without stack trace leakage:
 
 | Error Code | HTTP Status | Description |
 |---|---|---|
+| `UNAUTHORIZED` / `INVALID_TOKEN` | 401 Unauthorized | Missing, invalid, or expired JWT token |
+| `FORBIDDEN` | 403 Forbidden | User lacks required scope or does not own the requested wallet |
 | `VALIDATION_FAILED` | 400 Bad Request | Request model validation failed (missing or invalid fields) |
 | `CURRENCY_MISMATCH` | 400 Bad Request | Target wallet currency does not match transaction currency |
 | `WALLET_NOT_ACTIVE` | 400 Bad Request | Target or treasury wallet is not in Active status |
@@ -485,3 +509,6 @@ All client and server errors are trapped by `GlobalExceptionHandlerMiddleware` a
 | `USER_ALREADY_EXISTS` | 409 Conflict | User with this email already exists |
 | `DUPLICATE_REQUEST` | 429 Too Many Requests | Unkeyed request throttled by anti-double-click guard |
 | `INTERNAL_SERVER_ERROR` | 500 Internal Server Error | Unhandled server exception (stack trace redacted) |
+
+
+

@@ -2,11 +2,14 @@ using Microsoft.AspNetCore.Mvc;
 using PaymentLedger.Business.Models;
 using PaymentLedger.Business.Services;
 using PaymentLedger.Shared.Responses;
+using PaymentLedger.Shared.Constants;
+using Microsoft.AspNetCore.Authorization;
 
 namespace PaymentLedger.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/users")]
+[Authorize(Policy = SecurityConstants.Policies.AdminLedger)]
 public class UsersController : ControllerBase
 {
     private readonly IUserBusinessService _userService;
@@ -90,3 +93,4 @@ public class UsersController : ControllerBase
         return Ok(ApiResponse<object>.Ok(new { UserId = id }, "User deleted successfully."));
     }
 }
+

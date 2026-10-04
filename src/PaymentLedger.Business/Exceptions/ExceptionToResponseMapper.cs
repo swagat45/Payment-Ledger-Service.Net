@@ -74,6 +74,16 @@ public class ExceptionToResponseMapper : IExceptionToResponseMapper
         {
             statusCode = (int)HttpStatusCode.TooManyRequests;
         }
+        else if (string.Equals(errorCode, ErrorCodes.Forbidden, StringComparison.OrdinalIgnoreCase))
+        {
+            statusCode = (int)HttpStatusCode.Forbidden;
+        }
+        else if (string.Equals(errorCode, ErrorCodes.Unauthorized, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(errorCode, ErrorCodes.InvalidCredentials, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(errorCode, ErrorCodes.InvalidToken, StringComparison.OrdinalIgnoreCase))
+        {
+            statusCode = (int)HttpStatusCode.Unauthorized;
+        }
         else
         {
             statusCode = (int)HttpStatusCode.BadRequest;

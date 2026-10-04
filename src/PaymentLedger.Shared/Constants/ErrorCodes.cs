@@ -21,5 +21,9 @@ public static class ErrorCodes
     public const string ValidationFailed = "VALIDATION_FAILED";
     public const string ConcurrencyConflict = "CONCURRENCY_CONFLICT";
     public const string DuplicateRequest = "DUPLICATE_REQUEST";
+    public const string Unauthorized = "UNAUTHORIZED";
+    public const string Forbidden = "FORBIDDEN";
+    public const string InvalidCredentials = "INVALID_CREDENTIALS";
+    public const string InvalidToken = "INVALID_TOKEN";
     public const string InternalServerError = "INTERNAL_SERVER_ERROR";
 }

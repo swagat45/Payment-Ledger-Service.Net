@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionBusiness>(sp => sp.GetRequiredService<TransactionBusinessService>());
 
         services.AddSingleton<IExceptionToResponseMapper, ExceptionToResponseMapper>();
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
         return services;
     }

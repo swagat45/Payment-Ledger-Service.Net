@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Microsoft.Extensions.Caching.Memory;
+using StackExchange.Redis;
 using Microsoft.Extensions.Logging.Abstractions;
 using PaymentLedger.Business.Common;
 using PaymentLedger.Repository.Abstractions;
@@ -13,14 +13,32 @@ namespace PaymentLedger.UnitTests.Infrastructure;
 public class IdempotencyServiceTests
 {
     private readonly FakeIdempotencyRepository _repository = new();
-    private readonly IMemoryCache _memoryCache = new MemoryCache(new MemoryCacheOptions());
-    private readonly FakeDateTimeProvider _dateTimeProvider = new(DateTimeOffset.UtcNow);
+        private readonly FakeDateTimeProvider _dateTimeProvider = new(DateTimeOffset.UtcNow);
 
     private IdempotencyService CreateService()
     {
+        var dbMock = new Moq.Mock<IDatabase>();
+        
+        var cache = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
+        
+        dbMock.Setup(d => d.StringSet(Moq.It.IsAny<RedisKey>(), Moq.It.IsAny<RedisValue>(), Moq.It.IsAny<TimeSpan?>(), Moq.It.IsAny<When>()))
+              .Returns((RedisKey key, RedisValue val, TimeSpan? exp, When w) => cache.TryAdd(key.ToString(), val.ToString()));
+
+        dbMock.Setup(d => d.StringSetAsync(Moq.It.IsAny<RedisKey>(), Moq.It.IsAny<RedisValue>(), Moq.It.IsAny<TimeSpan?>(), Moq.It.IsAny<bool>(), Moq.It.IsAny<When>(), Moq.It.IsAny<CommandFlags>()))
+              .Returns((RedisKey key, RedisValue val, TimeSpan? exp, bool keep, When w, CommandFlags f) => { cache[key.ToString()] = val.ToString(); return Task.FromResult(true); });
+        
+        dbMock.Setup(d => d.StringSetAsync(Moq.It.IsAny<RedisKey>(), Moq.It.IsAny<RedisValue>(), Moq.It.IsAny<TimeSpan?>(), Moq.It.IsAny<When>(), Moq.It.IsAny<CommandFlags>()))
+              .Returns((RedisKey key, RedisValue val, TimeSpan? exp, When w, CommandFlags f) => { cache[key.ToString()] = val.ToString(); return Task.FromResult(true); });
+              
+        dbMock.Setup(d => d.StringGetAsync(Moq.It.IsAny<RedisKey>(), CommandFlags.None))
+              .Returns((RedisKey key, CommandFlags f) => Task.FromResult(cache.TryGetValue(key.ToString(), out var val) ? (RedisValue)val : RedisValue.Null));
+
+        var multiplexerMock = new Moq.Mock<IConnectionMultiplexer>();
+        multiplexerMock.Setup(m => m.GetDatabase(Moq.It.IsAny<int>(), Moq.It.IsAny<object>())).Returns(dbMock.Object);
+
         return new IdempotencyService(
             _repository,
-            _memoryCache,
+            new[] { multiplexerMock.Object },
             _dateTimeProvider,
             NullLogger<IdempotencyService>.Instance);
     }
@@ -340,6 +358,106 @@ public class IdempotencyServiceTests
         Assert.Equal($"debit:{walletId:D}:order-ref-999", result);
     }
 
+
+    [Fact]
+    public void CheckAntiDoubleClick_WhenRedisThrowsException_FailsSafeAndDoesNotThrow()
+    {
+        // Arrange
+        var dbMock = new Moq.Mock<IDatabase>();
+        dbMock.Setup(d => d.StringSet(Moq.It.IsAny<RedisKey>(), Moq.It.IsAny<RedisValue>(), Moq.It.IsAny<TimeSpan?>(), Moq.It.IsAny<When>()))
+              .Throws(new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Redis unavailable"));
+
+        var multiplexerMock = new Moq.Mock<IConnectionMultiplexer>();
+        multiplexerMock.Setup(m => m.GetDatabase(Moq.It.IsAny<int>(), Moq.It.IsAny<object>())).Returns(dbMock.Object);
+
+        var service = new IdempotencyService(
+            _repository,
+            new[] { multiplexerMock.Object },
+            _dateTimeProvider,
+            NullLogger<IdempotencyService>.Instance);
+
+        var walletId = Guid.NewGuid();
+
+        // Act & Assert (Should not throw, fails open gracefully)
+        var exception = Record.Exception(() => service.CheckAntiDoubleClick(walletId, 100m, "debit"));
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task CheckAsync_WhenRedisThrowsException_FallsBackToDatabaseSuccessfully()
+    {
+        // Arrange
+        const string key = "redis-fail-key";
+        const string endpoint = "/api/v1/wallets/debit";
+        const string hash = "valid-hash";
+        var sampleResponse = new TestDto("CODE999", 250m);
+
+        var existing = IdempotencyRequest.Create(
+            key,
+            endpoint,
+            hash,
+            JsonSerializer.Serialize(sampleResponse),
+            200,
+            "Completed",
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow.AddHours(24));
+
+        await _repository.AddAsync(existing);
+
+        var dbMock = new Moq.Mock<IDatabase>();
+        dbMock.Setup(d => d.StringGetAsync(Moq.It.IsAny<RedisKey>(), Moq.It.IsAny<CommandFlags>()))
+              .Throws(new RedisException("Redis timeout"));
+
+        var multiplexerMock = new Moq.Mock<IConnectionMultiplexer>();
+        multiplexerMock.Setup(m => m.GetDatabase(Moq.It.IsAny<int>(), Moq.It.IsAny<object>())).Returns(dbMock.Object);
+
+        var service = new IdempotencyService(
+            _repository,
+            new[] { multiplexerMock.Object },
+            _dateTimeProvider,
+            NullLogger<IdempotencyService>.Instance);
+
+        // Act
+        var result = await service.CheckAsync<TestDto>(key, endpoint, hash, CancellationToken.None);
+
+        // Assert (Falls back to DB seamlessly)
+        Assert.True(result.IsProcessed);
+        Assert.NotNull(result.Result);
+        Assert.Equal("CODE999", result.Result.Code);
+        Assert.Equal(250m, result.Result.Amount);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WhenRedisThrowsException_CompletesSuccessfully()
+    {
+        // Arrange
+        const string key = "save-fail-key";
+        const string endpoint = "/api/v1/wallets/save";
+        const string hash = "save-hash";
+        var sample = new TestDto("SAVE-OK", 100m);
+
+        var dbMock = new Moq.Mock<IDatabase>();
+        dbMock.Setup(d => d.StringSetAsync(Moq.It.IsAny<RedisKey>(), Moq.It.IsAny<RedisValue>(), Moq.It.IsAny<TimeSpan?>(), Moq.It.IsAny<bool>(), Moq.It.IsAny<When>(), Moq.It.IsAny<CommandFlags>()))
+              .Throws(new RedisException("Redis write failed"));
+
+        var multiplexerMock = new Moq.Mock<IConnectionMultiplexer>();
+        multiplexerMock.Setup(m => m.GetDatabase(Moq.It.IsAny<int>(), Moq.It.IsAny<object>())).Returns(dbMock.Object);
+
+        var service = new IdempotencyService(
+            _repository,
+            new[] { multiplexerMock.Object },
+            _dateTimeProvider,
+            NullLogger<IdempotencyService>.Instance);
+
+        // Act & Assert (DB write succeeds, Redis failure is safely suppressed)
+        var exception = await Record.ExceptionAsync(() => service.SaveAsync(key, endpoint, hash, sample, 200, CancellationToken.None));
+        Assert.Null(exception);
+
+        var saved = await _repository.GetByKeyAndEndpointAsync(key, endpoint);
+        Assert.NotNull(saved);
+        Assert.Equal(key, saved.IdempotencyKey);
+    }
+
     private sealed record TestDto(string Code, decimal Amount);
 
     private sealed class FakeIdempotencyRepository : IIdempotencyRepository
@@ -372,3 +490,8 @@ public class IdempotencyServiceTests
         public DateTimeOffset UtcNow { get; }
     }
 }
+
+
+
+
+

@@ -1,4 +1,14 @@
 services:
+  paymentledger.redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
   paymentledger.postgres:
     image: postgres:17-alpine
     environment:
@@ -23,10 +33,13 @@ services:
     depends_on:
       paymentledger.postgres:
         condition: service_healthy
+      paymentledger.redis:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Host=paymentledger.postgres;Port=5432;Database=payment_ledger;Username=postgres;Password=postgres
+      ConnectionStrings__Redis: paymentledger.redis:6379
       TreasuryWallet__UserEmail: treasury@paymentledger.local
       TreasuryWallet__FullName: Payment Ledger Treasury
       TreasuryWallet__Currencies__0: USD
@@ -50,3 +63,5 @@ services:
 
 volumes:
   paymentledger-postgres-data:
+
+

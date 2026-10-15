@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 
 using PaymentLedger.Api.Common;
 using PaymentLedger.Api.Filters;
@@ -22,7 +23,9 @@ public static class ServiceCollectionExtensions
         
         services.AddSwaggerGen();
 
-        services.AddHealthChecks();
+        services.AddHealthChecks()
+            .AddCheck<RedisHealthCheck>("redis", tags: ["cache", "redis"]);
+
         services.AddHttpContextAccessor();
         services.AddScoped<ICorrelationIdProvider, CorrelationIdProvider>();
         
@@ -39,6 +42,20 @@ public static class ServiceCollectionExtensions
                       .WithExposedHeaders("X-Correlation-ID");
             });
         });
+
+        // Redis Configuration
+        var redisConnectionString = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrEmpty(redisConnectionString))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                var redisOptions = ConfigurationOptions.Parse(redisConnectionString);
+                redisOptions.AbortOnConnectFail = false;
+                redisOptions.ConnectTimeout = 5000;
+                redisOptions.SyncTimeout = 3000;
+                return ConnectionMultiplexer.Connect(redisOptions);
+            });
+        }
 
         // JWT Configuration
         var jwtOptions = new JwtOptions();
@@ -82,3 +99,4 @@ public static class ServiceCollectionExtensions
         return services;
     }
 }
+

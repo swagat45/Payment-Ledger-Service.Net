@@ -1,6 +1,6 @@
 # Payment Ledger Service
 
-Production-grade, idempotent digital wallet and double-entry financial ledger system built with **.NET 10**, **C# 13**, **PostgreSQL 17**, **Entity Framework Core 10**, and an **Angular 17** glassmorphic dashboard.
+Production-grade, idempotent digital wallet and double-entry financial ledger system built with **.NET 10**, **C# 13**, **PostgreSQL 17**, **Redis 7**, **Entity Framework Core 10**, and an **Angular 17** glassmorphic dashboard.
 
 ---
 
@@ -19,7 +19,7 @@ Production-grade, idempotent digital wallet and double-entry financial ledger sy
 - [Sample API Requests & Payloads](#9-sample-api-requests--payloads)
 - [Postman Collection](#10-postman-collection)
 - [Testing & Quality Gates](#11-testing--quality-gates)
-  - [Unit Tests (190 tests)](#111-unit-tests)
+  - [Unit Tests (193 tests)](#111-unit-tests)
   - [Architecture Tests (7 tests)](#112-architecture-boundary-tests)
   - [Integration & Concurrency Tests (9 tests)](#113-integration--concurrency-tests)
 - [Database Migrations](#12-database-migrations)
@@ -146,8 +146,9 @@ sequenceDiagram
 3. **SHA-256 Request Fingerprinting**:
    - Computes a SHA-256 digest of payload fields (`Amount`, `Currency`, `Description`, `Metadata`). Reusing an idempotency key with an altered payload triggers an immediate HTTP 409 (`IDEMPOTENCY_CONFLICT`).
 
-4. **Anti-Double-Click Guard**:
-   - Unkeyed rapid mutation requests are fingerprinted in memory. Repeated requests targeting the same wallet within a 3-second window are rejected with HTTP 429 (`DUPLICATE_REQUEST`).
+4. **Distributed Anti-Double-Click & Fast-Path Caching (Redis)**:
+   - Unkeyed rapid mutation requests trigger an atomic distributed Redis lock (`SETNX` with 3-second TTL), rejecting concurrent double-clicks across multi-node deployments with HTTP 429 (`DUPLICATE_REQUEST`).
+   - Successful keyed mutations are cached in Redis (24-hour TTL) with payload SHA-256 validation to serve idempotency lookups in `<1ms` without querying PostgreSQL.
 
 5. **Deterministic Business Keys**:
    - When clients supply an external `referenceId` (e.g. order ID), the service constructs `"{action}:{walletId}:{referenceId}"` to avoid duplicate charges even without UUID keys.
@@ -211,7 +212,7 @@ PaymentLedgerService/
 │       └── Context/                   # CorrelationContext, ICorrelationIdProvider
 │
 ├── tests/
-│   ├── PaymentLedger.UnitTests/         # 183 tests: Invariants, business edge cases, concurrency & idempotency
+│   ├── PaymentLedger.UnitTests/         # 193 tests: Invariants, business edge cases, concurrency, Redis resilience & idempotency
 │   ├── PaymentLedger.ArchitectureTests/ # 7 tests: NetArchTest enforcing strict layer boundaries
 │   └── PaymentLedger.IntegrationTests/  # 9 tests: Real PostgreSQL Testcontainers integration & concurrency tests
 │
@@ -231,7 +232,7 @@ PaymentLedgerService/
 
 ### Option A: Docker Compose (Full-Stack - Recommended)
 
-Runs PostgreSQL 17, Web API (port 8080), and Angular UI (port 4200):
+Runs PostgreSQL 17, Redis 7, Web API (port 8080), and Angular UI (port 4200):
 
 ```powershell
 # Build and launch all services in background
@@ -424,10 +425,10 @@ dotnet test PaymentLedgerService.sln
 ```
 
 ### 11.1 Unit Tests
-**190 tests** (fast, in-memory execution):
+**193 tests** (fast, in-memory execution):
 - Domain model invariants, money precision, wallet status state machine, and ledger double-entry balancing.
 - Business service orchestration (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`).
-- Idempotency engine verification: SHA-256 fingerprinting, replay of cached transactions, post-lock recheck verification, and multi-threaded anti-double-click guard testing.
+- Distributed idempotency engine verification: SHA-256 fingerprinting, replay of cached transactions, post-lock recheck verification, Redis fail-safe fault tolerance, and multi-threaded anti-double-click guard testing.
 - Refund lifecycle, over-refund guardrails, and transaction reference linking.
 - Controller endpoints and exception-to-response mapping.
 

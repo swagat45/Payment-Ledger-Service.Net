@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionRepository, TransactionRepository>();
         services.AddScoped<ILedgerRepository, LedgerRepository>();
         services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
+        services.AddScoped<IOutboxRepository, OutboxRepository>();
         services.AddScoped<TreasuryWalletSeeder>();
 
         services.AddHealthChecks()

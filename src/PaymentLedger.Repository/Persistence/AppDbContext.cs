@@ -22,6 +22,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext, IUnitOfWork
 
     public DbSet<IdempotencyRequest> IdempotencyRequests { get; set; } = null!;
 
+    public DbSet<OutboxMessage> OutboxMessages { get; set; } = null!;
+
     IQueryable<User> IAppDbContext.Users => Users;
 
     IQueryable<Wallet> IAppDbContext.Wallets => Wallets;
@@ -31,6 +33,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext, IUnitOfWork
     IQueryable<LedgerEntry> IAppDbContext.LedgerEntries => LedgerEntries;
 
     IQueryable<IdempotencyRequest> IAppDbContext.IdempotencyRequests => IdempotencyRequests;
+
+    IQueryable<OutboxMessage> IAppDbContext.OutboxMessages => OutboxMessages;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

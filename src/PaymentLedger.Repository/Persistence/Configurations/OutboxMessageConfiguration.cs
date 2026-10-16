@@ -1,0 +1,51 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PaymentLedger.Repository.Entities;
+
+namespace PaymentLedger.Repository.Persistence.Configurations;
+
+public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<OutboxMessage>
+{
+    public void Configure(EntityTypeBuilder<OutboxMessage> builder)
+    {
+        builder.ToTable("outbox_messages");
+
+        builder.HasKey(message => message.Id);
+
+        builder.Property(message => message.Id)
+            .HasColumnName("id")
+            .ValueGeneratedOnAdd();
+
+        builder.Property(message => message.Type)
+            .HasColumnName("type")
+            .HasMaxLength(256)
+            .IsRequired();
+
+        builder.Property(message => message.Payload)
+            .HasColumnName("payload")
+            .HasColumnType("jsonb")
+            .IsRequired();
+
+        builder.Property(message => message.OccurredOnUtc)
+            .HasColumnName("occurred_on_utc")
+            .HasColumnType("timestamptz")
+            .IsRequired();
+
+        builder.Property(message => message.ProcessedOnUtc)
+            .HasColumnName("processed_on_utc")
+            .HasColumnType("timestamptz");
+
+        builder.Property(message => message.Error)
+            .HasColumnName("error");
+
+        builder.Property(message => message.RetryCount)
+            .HasColumnName("retry_count")
+            .HasDefaultValue(0)
+            .IsRequired();
+
+        builder.HasIndex(message => message.ProcessedOnUtc)
+            .HasFilter("\"processed_on_utc\" IS NULL");
+
+        builder.HasIndex(message => message.OccurredOnUtc);
+    }
+}

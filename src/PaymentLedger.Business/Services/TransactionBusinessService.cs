@@ -1,4 +1,5 @@
 using PaymentLedger.Business.Common;
+using PaymentLedger.Business.Events;
 using PaymentLedger.Business.Exceptions;
 using PaymentLedger.Business.Models;
 using PaymentLedger.Repository.Abstractions;
@@ -17,6 +18,7 @@ public class TransactionBusinessService : ITransactionBusinessService, ITransact
     private readonly ILedgerRepository _ledgerRepository;
     private readonly IWalletRepository _walletRepository;
     private readonly IIdempotencyService _idempotencyService;
+    private readonly IEventPublisher _eventPublisher;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
 
@@ -25,6 +27,7 @@ public class TransactionBusinessService : ITransactionBusinessService, ITransact
         ILedgerRepository ledgerRepository,
         IWalletRepository walletRepository,
         IIdempotencyService idempotencyService,
+        IEventPublisher eventPublisher,
         IUnitOfWork unitOfWork,
         IDateTimeProvider dateTimeProvider)
     {
@@ -32,6 +35,7 @@ public class TransactionBusinessService : ITransactionBusinessService, ITransact
         _ledgerRepository = ledgerRepository;
         _walletRepository = walletRepository;
         _idempotencyService = idempotencyService;
+        _eventPublisher = eventPublisher;
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
     }
@@ -231,7 +235,19 @@ public class TransactionBusinessService : ITransactionBusinessService, ITransact
                 statusCode: 200,
                 ct);
 
-            // 9. Commit transaction
+            // 9. Publish Outbox Domain Event
+            await _eventPublisher.PublishAsync(new TransactionPostedEvent(
+                TransactionId: refundTxn.Id,
+                TransactionCode: refundTxn.TransactionCode,
+                Type: "Refund",
+                SourceWalletId: refundTxn.SourceWalletId,
+                DestinationWalletId: refundTxn.DestinationWalletId,
+                Amount: refundTxn.Amount,
+                Currency: refundTxn.Currency,
+                Description: refundTxn.Description,
+                OccurredOnUtc: now), ct);
+
+            // 10. Commit transaction
             await _unitOfWork.SaveChangesAsync(ct);
             await _unitOfWork.CommitTransactionAsync(ct);
 

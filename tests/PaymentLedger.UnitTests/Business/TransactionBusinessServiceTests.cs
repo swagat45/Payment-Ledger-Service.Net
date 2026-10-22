@@ -1,4 +1,5 @@
 using PaymentLedger.Business.Common;
+using PaymentLedger.Business.Events;
 using PaymentLedger.Business.Exceptions;
 using PaymentLedger.Business.Models;
 using PaymentLedger.Business.Services;
@@ -17,6 +18,7 @@ public class TransactionBusinessServiceTests
     private readonly FakeLedgerRepository _ledgerRepository = new();
     private readonly FakeWalletRepository _walletRepository = new();
     private readonly FakeIdempotencyService _idempotencyService = new();
+    private readonly FakeEventPublisher _eventPublisher = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly FakeDateTimeProvider _dateTimeProvider = new(DateTimeOffset.UtcNow);
 
@@ -26,6 +28,7 @@ public class TransactionBusinessServiceTests
             _ledgerRepository,
             _walletRepository,
             _idempotencyService,
+            _eventPublisher,
             _unitOfWork,
             _dateTimeProvider);
 
@@ -58,6 +61,12 @@ public class TransactionBusinessServiceTests
         Assert.Equal(2, entries.Count);
         Assert.Contains(entries, e => e.WalletId == treasuryWallet.Id && e.EntryType == LedgerEntryType.Debit && e.Amount == 100m);
         Assert.Contains(entries, e => e.WalletId == userWallet.Id && e.EntryType == LedgerEntryType.Credit && e.Amount == 100m);
+        Assert.Single(_eventPublisher.PublishedEvents);
+        var publishedEvent = Assert.IsType<TransactionPostedEvent>(_eventPublisher.PublishedEvents[0]);
+        Assert.Equal(result.TransactionId, publishedEvent.TransactionId);
+        Assert.Equal("Refund", publishedEvent.Type);
+        Assert.Equal(100m, publishedEvent.Amount);
+        Assert.Equal("USD", publishedEvent.Currency);
     }
 
     [Fact]
@@ -502,6 +511,18 @@ public class TransactionBusinessServiceTests
     {
         public DateTimeOffset UtcNow { get; }
         public FakeDateTimeProvider(DateTimeOffset utcNow) => UtcNow = utcNow;
+    }
+
+    private sealed class FakeEventPublisher : IEventPublisher
+    {
+        public List<IDomainEvent> PublishedEvents { get; } = [];
+
+        public Task PublishAsync<TEvent>(TEvent domainEvent, CancellationToken ct = default)
+            where TEvent : IDomainEvent
+        {
+            PublishedEvents.Add(domainEvent);
+            return Task.CompletedTask;
+        }
     }
 
     #endregion

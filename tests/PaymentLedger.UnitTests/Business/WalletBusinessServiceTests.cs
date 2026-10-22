@@ -1,4 +1,5 @@
 using PaymentLedger.Business.Common;
+using PaymentLedger.Business.Events;
 using PaymentLedger.Business.Exceptions;
 using PaymentLedger.Business.Models;
 using PaymentLedger.Business.Services;
@@ -19,6 +20,7 @@ public class WalletBusinessServiceTests
     private readonly FakeTransactionRepository _transactionRepository = new();
     private readonly FakeLedgerRepository _ledgerRepository = new();
     private readonly FakeIdempotencyService _idempotencyService = new();
+    private readonly FakeEventPublisher _eventPublisher = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly FakeDateTimeProvider _dateTimeProvider = new(DateTimeOffset.UtcNow);
     private readonly FakeCurrentUserService _currentUserService = new();
@@ -30,6 +32,7 @@ public class WalletBusinessServiceTests
             _transactionRepository,
             _ledgerRepository,
             _idempotencyService,
+            _eventPublisher,
             _unitOfWork,
             _dateTimeProvider,
             _currentUserService);
@@ -50,6 +53,11 @@ public class WalletBusinessServiceTests
         Assert.Equal(0m, response.Balance);
         Assert.Equal("Active", response.Status);
         Assert.True(_unitOfWork.ChangesSaved);
+        Assert.Single(_eventPublisher.PublishedEvents);
+        var publishedEvent = Assert.IsType<WalletCreatedEvent>(_eventPublisher.PublishedEvents[0]);
+        Assert.Equal(response.WalletId, publishedEvent.WalletId);
+        Assert.Equal(user.Id, publishedEvent.UserId);
+        Assert.Equal("USD", publishedEvent.Currency);
     }
 
     [Fact]
@@ -166,6 +174,12 @@ public class WalletBusinessServiceTests
         Assert.True(_unitOfWork.TransactionCommitted);
         Assert.Single(_transactionRepository.Transactions);
         Assert.Equal(2, _ledgerRepository.Entries.Count);
+        Assert.Single(_eventPublisher.PublishedEvents);
+        var publishedEvent = Assert.IsType<TransactionPostedEvent>(_eventPublisher.PublishedEvents[0]);
+        Assert.Equal(response.TransactionId, publishedEvent.TransactionId);
+        Assert.Equal("Credit", publishedEvent.Type);
+        Assert.Equal(100m, publishedEvent.Amount);
+        Assert.Equal("USD", publishedEvent.Currency);
     }
 
     [Fact]
@@ -206,6 +220,12 @@ public class WalletBusinessServiceTests
         Assert.True(_unitOfWork.TransactionCommitted);
         Assert.Single(_transactionRepository.Transactions);
         Assert.Equal(2, _ledgerRepository.Entries.Count);
+        Assert.Single(_eventPublisher.PublishedEvents);
+        var publishedEvent = Assert.IsType<TransactionPostedEvent>(_eventPublisher.PublishedEvents[0]);
+        Assert.Equal(response.TransactionId, publishedEvent.TransactionId);
+        Assert.Equal("Debit", publishedEvent.Type);
+        Assert.Equal(40m, publishedEvent.Amount);
+        Assert.Equal("USD", publishedEvent.Currency);
     }
 
     [Fact]
@@ -516,6 +536,18 @@ public class WalletBusinessServiceTests
         public IReadOnlyCollection<string> Scopes => Array.Empty<string>();
         public bool IsAdmin => false;
         public bool HasScope(string scope) => false;
+    }
+
+    private sealed class FakeEventPublisher : IEventPublisher
+    {
+        public List<IDomainEvent> PublishedEvents { get; } = [];
+
+        public Task PublishAsync<TEvent>(TEvent domainEvent, CancellationToken ct = default)
+            where TEvent : IDomainEvent
+        {
+            PublishedEvents.Add(domainEvent);
+            return Task.CompletedTask;
+        }
     }
 
     #endregion

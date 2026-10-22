@@ -1,4 +1,5 @@
 using PaymentLedger.Business.Common;
+using PaymentLedger.Business.Events;
 using PaymentLedger.Business.Exceptions;
 using PaymentLedger.Business.Models;
 using PaymentLedger.Repository.Abstractions;
@@ -19,6 +20,7 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
     private readonly ITransactionRepository _transactionRepository;
     private readonly ILedgerRepository _ledgerRepository;
     private readonly IIdempotencyService _idempotencyService;
+    private readonly IEventPublisher _eventPublisher;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ICurrentUserService _currentUserService;
@@ -29,6 +31,7 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         ITransactionRepository transactionRepository,
         ILedgerRepository ledgerRepository,
         IIdempotencyService idempotencyService,
+        IEventPublisher eventPublisher,
         IUnitOfWork unitOfWork,
         IDateTimeProvider dateTimeProvider,
         ICurrentUserService currentUserService)
@@ -38,6 +41,7 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
         _transactionRepository = transactionRepository;
         _ledgerRepository = ledgerRepository;
         _idempotencyService = idempotencyService;
+        _eventPublisher = eventPublisher;
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
         _currentUserService = currentUserService;
@@ -67,6 +71,13 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
 
         var wallet = Wallet.Create(request.UserId, normalizedCurrency, _dateTimeProvider.UtcNow);
         await _walletRepository.AddAsync(wallet, ct);
+
+        await _eventPublisher.PublishAsync(new WalletCreatedEvent(
+            WalletId: wallet.Id,
+            UserId: wallet.UserId,
+            Currency: wallet.Currency,
+            OccurredOnUtc: wallet.CreatedAt), ct);
+
         await _unitOfWork.SaveChangesAsync(ct);
 
         return MapToResponse(wallet);
@@ -336,7 +347,19 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
                 statusCode: 200,
                 ct);
 
-            // 8. Commit atomic transaction
+            // 8. Publish Outbox Domain Event
+            await _eventPublisher.PublishAsync(new TransactionPostedEvent(
+                TransactionId: transaction.Id,
+                TransactionCode: transaction.TransactionCode,
+                Type: transaction.Type.ToString(),
+                SourceWalletId: transaction.SourceWalletId,
+                DestinationWalletId: transaction.DestinationWalletId,
+                Amount: transaction.Amount,
+                Currency: transaction.Currency,
+                Description: transaction.Description,
+                OccurredOnUtc: now), ct);
+
+            // 9. Commit atomic transaction
             await _unitOfWork.SaveChangesAsync(ct);
             await _unitOfWork.CommitTransactionAsync(ct);
 
@@ -502,7 +525,19 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
                 statusCode: 200,
                 ct);
 
-            // 8. Commit atomic transaction
+            // 8. Publish Outbox Domain Event
+            await _eventPublisher.PublishAsync(new TransactionPostedEvent(
+                TransactionId: transaction.Id,
+                TransactionCode: transaction.TransactionCode,
+                Type: transaction.Type.ToString(),
+                SourceWalletId: transaction.SourceWalletId,
+                DestinationWalletId: transaction.DestinationWalletId,
+                Amount: transaction.Amount,
+                Currency: transaction.Currency,
+                Description: transaction.Description,
+                OccurredOnUtc: now), ct);
+
+            // 9. Commit atomic transaction
             await _unitOfWork.SaveChangesAsync(ct);
             await _unitOfWork.CommitTransactionAsync(ct);
 

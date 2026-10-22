@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
+        services.AddScoped<IEventPublisher, EventPublisher>();
         
         services.AddScoped<UserBusinessService>();
         services.AddScoped<IUserBusinessService>(sp => sp.GetRequiredService<UserBusinessService>());

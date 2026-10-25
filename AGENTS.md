@@ -39,11 +39,11 @@ PaymentLedgerService/
 │   │   └── DependencyInjection.cs     # AddBusiness() DI extension
 │   │
 │   ├── PaymentLedger.Repository/       # Persistence & Database Access
-│   │   ├── Entities/                  # User, Wallet, Transaction, LedgerEntry, IdempotencyRequest
+│   │   ├── Entities/                  # User, Wallet, Transaction, LedgerEntry, IdempotencyRequest, OutboxMessage
 │   │   ├── Enums/                     # WalletStatus, TransactionType, TransactionStatus, LedgerEntryType, UserStatus
 │   │   ├── ValueObjects/              # Money
 │   │   ├── Persistence/               # AppDbContext, Configurations/ (EF Core fluent mappings), Migrations/
-│   │   ├── Repositories/              # UserRepository, WalletRepository, TransactionRepository, LedgerRepository, IdempotencyRepository
+│   │   ├── Repositories/              # UserRepository, WalletRepository, TransactionRepository, LedgerRepository, IdempotencyRepository, OutboxRepository
 │   │   ├── Abstractions/              # IUnitOfWork, IAppDbContext, repository interfaces, IDateTimeProvider
 │   │   ├── Seeding/                   # TreasuryWalletSeeder (seeds Treasury user & multi-currency wallets)
 │   │   └── DependencyInjection.cs     # AddRepository() DI extension

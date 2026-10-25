@@ -9,21 +9,22 @@ Production-grade, idempotent digital wallet and double-entry financial ledger sy
 - [System Architecture](#2-system-architecture)
 - [Financial Ledger Principles & Invariants](#3-financial-ledger-principles--invariants)
 - [Concurrency & Idempotency Guarantees](#4-concurrency--idempotency-guarantees)
-- [Security & Authentication](#5-security--authentication)
-- [Project Structure](#6-project-structure)
-- [Quick Start Guide](#7-quick-start-guide)
+- [Transactional Outbox & Event-Driven Ecosystem](#5-transactional-outbox--event-driven-ecosystem)
+- [Security & Authentication](#6-security--authentication)
+- [Project Structure](#7-project-structure)
+- [Quick Start Guide](#8-quick-start-guide)
   - [Option A: Docker Compose (Full-Stack - Recommended)](#option-a-docker-compose-full-stack---recommended)
   - [Option B: Local .NET CLI Backend](#option-b-local-net-cli-backend)
   - [Option C: Angular Frontend Development Server](#option-c-angular-frontend-development-server)
-- [API Endpoints Reference](#8-api-endpoints-reference)
-- [Sample API Requests & Payloads](#9-sample-api-requests--payloads)
-- [Postman Collection](#10-postman-collection)
-- [Testing & Quality Gates](#11-testing--quality-gates)
-  - [Unit Tests (204 tests)](#111-unit-tests)
-  - [Architecture Tests (7 tests)](#112-architecture-boundary-tests)
-  - [Integration & Concurrency Tests (9 tests)](#113-integration--concurrency-tests)
-- [Database Migrations](#12-database-migrations)
-- [Observability & Error Handling](#13-observability--error-handling)
+- [API Endpoints Reference](#9-api-endpoints-reference)
+- [Sample API Requests & Payloads](#10-sample-api-requests--payloads)
+- [Postman Collection](#11-postman-collection)
+- [Testing & Quality Gates](#12-testing--quality-gates)
+  - [Unit Tests (204 tests)](#121-unit-tests)
+  - [Architecture Tests (7 tests)](#122-architecture-boundary-tests)
+  - [Integration & Concurrency Tests (9 tests)](#123-integration--concurrency-tests)
+- [Database Migrations](#13-database-migrations)
+- [Observability & Error Handling](#14-observability--error-handling)
 
 ---
 
@@ -155,7 +156,61 @@ sequenceDiagram
 
 ---
 
-## 5. Security & Authentication
+## 5. Transactional Outbox & Event-Driven Ecosystem
+
+The system implements the **Transactional Outbox Pattern** to eliminate dual-write anomalies and power an asynchronous, distributed event-driven architecture with sibling services such as the **Inventory API (`EVA.StockManagement`)**.
+
+```mermaid
+flowchart LR
+    subgraph PaymentLedger["Payment Ledger Service (PostgreSQL)"]
+        direction TB
+        Mutation["Wallet Mutation<br/>(Debit/Credit/Refund)"]
+        AtomicTx["Atomic DB Transaction:<br/>• Update Balance<br/>• Double-Entry Ledger<br/>• Outbox Message"]
+        OutboxTable[("outbox_messages")]
+        Dispatcher["OutboxProcessorBackgroundService<br/>(SELECT ... FOR UPDATE SKIP LOCKED)"]
+        
+        Mutation --> AtomicTx
+        AtomicTx --> OutboxTable
+        OutboxTable -.-> Dispatcher
+    end
+
+    Broker{"Message Broker<br/>(RabbitMQ / Kafka)"}
+    
+    subgraph InventoryAPI["Inventory API (EVA.StockManagement) Consumers"]
+        direction TB
+        C1["Purchase Orders (PO)<br/>• Advance/Milestone Settlement<br/>• Status: Open → PartiallyClosed / Closed"]
+        C2["GRN / Purchase Vouchers<br/>• Accounts Payable (AP) Invoice Settlement"]
+        C3["Sales Vouchers<br/>• Accounts Receivable (AR) Collection<br/>• Unlocks Warehouse Dispatch"]
+        C4["Vendor & Client Accounts<br/>• Running Balance & Statement of Accounts"]
+        C5["Material Processing Vouchers<br/>• Subcontractor Job-Work Fee Settlement"]
+    end
+
+    Dispatcher -->|"TransactionPostedIntegrationEvent"| Broker
+    Broker --> C1
+    Broker --> C2
+    Broker --> C3
+    Broker --> C4
+    Broker --> C5
+```
+
+1. **Transactional Outbox Guarantee**:
+   - Domain events (`WalletCreatedEvent`, `TransactionPostedEvent`, `WalletStatusChangedEvent`) are staged via `IEventPublisher` within the active `IUnitOfWork`.
+   - Saved and committed atomically alongside wallet balance changes, idempotency records, and ledger entries in a single PostgreSQL transaction.
+2. **PostgreSQL Concurrency Safety (`SELECT ... FOR UPDATE SKIP LOCKED`)**:
+   - `OutboxProcessorBackgroundService` polls the database every 5 seconds.
+   - Uses `SELECT ... FOR UPDATE SKIP LOCKED` inside a transaction: multiple concurrent worker replicas process separate batches in parallel without waiting or locking out sibling nodes.
+3. **Multi-Consumer Ecosystem (Inventory API)**:
+   - Publishes `TransactionPostedIntegrationEvent` carrying `ReferenceId` (`PO-xxx`, `PV-xxx`, `SV-xxx`), `Amount`, and `Type`.
+   - Designed for downstream consumption across multiple business domains in `EVA.StockManagement`:
+     - **Purchase Orders (PO)**: Reconciles supplier advances and closes purchase commitments upon payment.
+     - **Goods Received Notes (GRN / Purchase Vouchers)**: Accounts Payable (AP) settlement upon physical material receipt.
+     - **Sales Vouchers**: Accounts Receivable (AR) customer collections; triggers stock reservation and delivery gate-pass release.
+     - **Vendor & Client Accounts**: Continuous ledger statement reconciliation and credit limit tracking.
+     - **Material Processing Vouchers**: Automatic subcontractor fee disbursements.
+
+---
+
+## 6. Security & Authentication
 
 The system implements a robust, stateless JWT (JSON Web Token) authentication layer to secure endpoints and enforce resource ownership.
 
@@ -173,7 +228,7 @@ The system implements a robust, stateless JWT (JSON Web Token) authentication la
 
 ---
 
-## 6. Project Structure
+## 7. Project Structure
 
 ```
 PaymentLedgerService/
@@ -184,24 +239,26 @@ PaymentLedgerService/
 ├── src/
 │   ├── PaymentLedger.Api/              # Presentation Tier
 │   │   ├── Controllers/               # UsersController, WalletsController, TransactionsController, LedgerController
+│   │   ├── BackgroundServices/        # OutboxProcessorBackgroundService (SKIP LOCKED batch worker)
 │   │   ├── Middleware/                # CorrelationIdMiddleware, GlobalExceptionHandlerMiddleware
 │   │   ├── Filters/                   # ApiResponseCorrelationFilter
 │   │   ├── Extensions/                # ServiceCollectionExtensions (DI, CORS, Swagger)
 │   │   └── Program.cs                 # App bootstrap, Serilog config, pipeline configuration
 │   │
 │   ├── PaymentLedger.Business/         # Business & Financial Orchestration Tier
-│   │   ├── Services/                  # UserBusinessService, WalletBusinessService, TransactionBusinessService
+│   │   ├── Services/                  # UserBusinessService, WalletBusinessService, TransactionBusinessService, OutboxDispatcherService
+│   │   ├── Events/                    # DomainEvents (WalletCreated, TransactionPosted), IEventPublisher, IIntegrationEventPublisher
 │   │   ├── Models/                    # Consolidated Per-API Models (UserModels.cs, WalletModels.cs, TransactionModels.cs)
 │   │   ├── Common/                    # IdempotencyService, SystemDateTimeProvider
 │   │   ├── Exceptions/                # ValidationException, ExceptionToResponseMapper
 │   │   └── DependencyInjection.cs     # AddBusiness() DI extension
 │   │
 │   ├── PaymentLedger.Repository/       # Data Access & Persistence Tier
-│   │   ├── Entities/                  # User, Wallet, Transaction, LedgerEntry, IdempotencyRequest
+│   │   ├── Entities/                  # User, Wallet, Transaction, LedgerEntry, IdempotencyRequest, OutboxMessage
 │   │   ├── Enums/                     # WalletStatus, TransactionType, TransactionStatus, LedgerEntryType, UserStatus
 │   │   ├── ValueObjects/              # Money
 │   │   ├── Persistence/               # AppDbContext, Configurations/ (EF Core fluent mappings), Migrations/
-│   │   ├── Repositories/              # UserRepository, WalletRepository, TransactionRepository, LedgerRepository, IdempotencyRepository
+│   │   ├── Repositories/              # UserRepository, WalletRepository, TransactionRepository, LedgerRepository, IdempotencyRepository, OutboxRepository
 │   │   ├── Abstractions/              # IUnitOfWork, IAppDbContext, repository interfaces, IDateTimeProvider
 │   │   ├── Seeding/                   # TreasuryWalletSeeder (seeds Treasury user & multi-currency wallets)
 │   │   └── DependencyInjection.cs     # AddRepository() DI extension
@@ -209,7 +266,8 @@ PaymentLedgerService/
 │   └── PaymentLedger.Shared/           # Cross-Cutting Shared Contracts
 │       ├── Responses/                 # ApiResponse<T>, ErrorResponse, PagedResponse<T>, IApiResponse
 │       ├── Constants/                 # ErrorCodes
-│       └── Context/                   # CorrelationContext, ICorrelationIdProvider
+│       ├── Context/                   # CorrelationContext, ICorrelationIdProvider
+│       └── Options/                   # JwtOptions, OutboxOptions
 │
 ├── tests/
 │   ├── PaymentLedger.UnitTests/         # 204 tests: Invariants, business edge cases, concurrency, Redis resilience, Outbox pattern & idempotency
@@ -228,7 +286,7 @@ PaymentLedgerService/
 
 ---
 
-## 7. Quick Start Guide
+## 8. Quick Start Guide
 
 ### Option A: Docker Compose (Full-Stack - Recommended)
 
@@ -290,7 +348,7 @@ npm run build
 
 ---
 
-## 8. API Endpoints Reference
+## 9. API Endpoints Reference
 
 ### Authentication (/api/v1/auth)
 - POST /api/v1/auth/token: Issue signed JWT access tokens specifying roles and scopes.
@@ -325,7 +383,7 @@ npm run build
 
 ---
 
-## 9. Sample API Requests & Payloads
+## 10. Sample API Requests & Payloads
 
 ### Credit Wallet (Deposit from Treasury)
 ```bash
@@ -395,7 +453,7 @@ curl -X POST "http://localhost:8080/api/v1/wallets/{walletId}/debit" \
 
 ---
 
-## 10. Postman Collection
+## 11. Postman Collection
 
 A complete, production-ready Postman collection is located at the root of the repository:
 
@@ -415,7 +473,7 @@ A complete, production-ready Postman collection is located at the root of the re
 
 ---
 
-## 11. Testing & Quality Gates
+## 12. Testing & Quality Gates
 
 The test suite enforces full verification across 3 dedicated test projects:
 
@@ -424,7 +482,7 @@ The test suite enforces full verification across 3 dedicated test projects:
 dotnet test PaymentLedgerService.sln
 ```
 
-### 11.1 Unit Tests
+### 12.1 Unit Tests
 **204 tests** (fast, in-memory execution):
 - Domain model invariants, money precision, wallet status state machine, and ledger double-entry balancing.
 - Business service orchestration (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`).
@@ -436,7 +494,7 @@ dotnet test PaymentLedgerService.sln
 dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
 ```
 
-### 11.2 Architecture Boundary Tests
+### 12.2 Architecture Boundary Tests
 **7 tests** (NetArchTest rules enforcing clean 3-tier layering):
 - `Api` only references `Business` and `Shared` (no direct `Repository` references).
 - `Business` only references `Repository` and `Shared` (no `Api` references).
@@ -448,7 +506,7 @@ dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
 dotnet test tests/PaymentLedger.ArchitectureTests/PaymentLedger.ArchitectureTests.csproj
 ```
 
-### 11.3 Integration & Concurrency Tests
+### 12.3 Integration & Concurrency Tests
 **9 tests** (Real PostgreSQL container execution via Testcontainers):
 - True database transaction concurrency: 10 concurrent HTTP debits against a low-balance wallet verifying `SELECT ... FOR UPDATE` row locking prevents negative balances.
 - Concurrent deduplication: 5 parallel requests with identical `Idempotency-Key` execute exactly once without double-debiting.
@@ -460,7 +518,7 @@ dotnet test tests/PaymentLedger.IntegrationTests/PaymentLedger.IntegrationTests.
 
 ---
 
-## 12. Database Migrations
+## 13. Database Migrations
 
 Migrations and entity configurations reside inside `PaymentLedger.Repository`. Always specify both `--project` and `--startup-project`:
 
@@ -488,7 +546,7 @@ dotnet ef migrations script `
 
 ---
 
-## 13. Observability & Error Handling
+## 14. Observability & Error Handling
 
 All client and server errors are trapped by `GlobalExceptionHandlerMiddleware` and converted into standardized `ErrorResponse` envelopes without stack trace leakage:
 

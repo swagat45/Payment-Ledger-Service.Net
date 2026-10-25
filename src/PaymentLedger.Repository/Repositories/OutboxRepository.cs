@@ -20,6 +20,13 @@ public sealed class OutboxRepository : IOutboxRepository
 
     public async Task<IReadOnlyList<OutboxMessage>> GetUnprocessedBatchAsync(int batchSize, CancellationToken cancellationToken = default)
     {
+        if (_dbContext.Database.IsNpgsql())
+        {
+            return await _dbContext.OutboxMessages
+                .FromSqlInterpolated($"SELECT * FROM outbox_messages WHERE processed_on_utc IS NULL ORDER BY occurred_on_utc LIMIT {batchSize} FOR UPDATE SKIP LOCKED")
+                .ToListAsync(cancellationToken);
+        }
+
         return await _dbContext.OutboxMessages
             .Where(m => m.ProcessedOnUtc == null)
             .OrderBy(m => m.OccurredOnUtc)

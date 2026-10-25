@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
+using PaymentLedger.Api.BackgroundServices;
 using PaymentLedger.Api.Common;
 using PaymentLedger.Api.Filters;
 using PaymentLedger.Shared.Constants;
@@ -95,6 +96,10 @@ public static class ServiceCollectionExtensions
                     context.User.HasClaim(c => c.Type == SecurityConstants.ClaimTypes.Scope && c.Value == SecurityConstants.Scopes.AdminLedger) ||
                     context.User.IsInRole(SecurityConstants.Roles.Admin)));
         });
+
+        // Outbox Configuration & Hosted Worker
+        services.Configure<OutboxOptions>(configuration.GetSection(OutboxOptions.SectionName));
+        services.AddHostedService<OutboxProcessorBackgroundService>();
 
         return services;
     }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using PaymentLedger.Business.Common;
+using PaymentLedger.Business.Events;
 using PaymentLedger.Business.Exceptions;
 using PaymentLedger.Business.Services;
 using PaymentLedger.Repository.Abstractions;
@@ -14,6 +15,8 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
         services.AddScoped<IEventPublisher, EventPublisher>();
+        services.AddSingleton<IIntegrationEventPublisher, LoggingIntegrationEventPublisher>();
+        services.AddScoped<IOutboxDispatcher, OutboxDispatcherService>();
         
         services.AddScoped<UserBusinessService>();
         services.AddScoped<IUserBusinessService>(sp => sp.GetRequiredService<UserBusinessService>());

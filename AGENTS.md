@@ -54,7 +54,7 @@ PaymentLedgerService/
 │       └── Context/                   # CorrelationContext, ICorrelationIdProvider
 │
 ├── tests/
-│   ├── PaymentLedger.UnitTests/         # 196 tests: Unit, domain invariants, business edge cases, concurrency simulations
+│   ├── PaymentLedger.UnitTests/         # 204 tests: Unit, domain invariants, business edge cases, concurrency simulations
 │   ├── PaymentLedger.ArchitectureTests/ # 7 tests: NetArchTest enforcing strict layer boundaries
 │   └── PaymentLedger.IntegrationTests/  # 9 tests: Real PostgreSQL Testcontainers integration & concurrency tests
 │
@@ -145,7 +145,7 @@ dotnet test PaymentLedgerService.sln
 ### 4.1 Running Individual Test Projects
 
 ```powershell
-# Unit & Domain Tests (196 tests - fast, in-memory)
+# Unit & Domain Tests (204 tests - fast, in-memory)
 dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
 
 # Architecture Boundary Tests (7 tests - NetArchTest)

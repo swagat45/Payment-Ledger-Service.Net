@@ -19,7 +19,7 @@ Production-grade, idempotent digital wallet and double-entry financial ledger sy
 - [Sample API Requests & Payloads](#9-sample-api-requests--payloads)
 - [Postman Collection](#10-postman-collection)
 - [Testing & Quality Gates](#11-testing--quality-gates)
-  - [Unit Tests (193 tests)](#111-unit-tests)
+  - [Unit Tests (204 tests)](#111-unit-tests)
   - [Architecture Tests (7 tests)](#112-architecture-boundary-tests)
   - [Integration & Concurrency Tests (9 tests)](#113-integration--concurrency-tests)
 - [Database Migrations](#12-database-migrations)
@@ -212,7 +212,7 @@ PaymentLedgerService/
 │       └── Context/                   # CorrelationContext, ICorrelationIdProvider
 │
 ├── tests/
-│   ├── PaymentLedger.UnitTests/         # 193 tests: Invariants, business edge cases, concurrency, Redis resilience & idempotency
+│   ├── PaymentLedger.UnitTests/         # 204 tests: Invariants, business edge cases, concurrency, Redis resilience, Outbox pattern & idempotency
 │   ├── PaymentLedger.ArchitectureTests/ # 7 tests: NetArchTest enforcing strict layer boundaries
 │   └── PaymentLedger.IntegrationTests/  # 9 tests: Real PostgreSQL Testcontainers integration & concurrency tests
 │
@@ -425,7 +425,7 @@ dotnet test PaymentLedgerService.sln
 ```
 
 ### 11.1 Unit Tests
-**193 tests** (fast, in-memory execution):
+**204 tests** (fast, in-memory execution):
 - Domain model invariants, money precision, wallet status state machine, and ledger double-entry balancing.
 - Business service orchestration (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`).
 - Distributed idempotency engine verification: SHA-256 fingerprinting, replay of cached transactions, post-lock recheck verification, Redis fail-safe fault tolerance, and multi-threaded anti-double-click guard testing.

@@ -20,7 +20,7 @@ Production-grade, idempotent digital wallet and double-entry financial ledger sy
 - [Sample API Requests & Payloads](#10-sample-api-requests--payloads)
 - [Postman Collection](#11-postman-collection)
 - [Testing & Quality Gates](#12-testing--quality-gates)
-  - [Unit Tests (204 tests)](#121-unit-tests)
+  - [Unit Tests (216 tests)](#121-unit-tests)
   - [Architecture Tests (7 tests)](#122-architecture-boundary-tests)
   - [Integration & Concurrency Tests (9 tests)](#123-integration--concurrency-tests)
 - [Database Migrations](#13-database-migrations)
@@ -267,10 +267,11 @@ PaymentLedgerService/
 │       ├── Responses/                 # ApiResponse<T>, ErrorResponse, PagedResponse<T>, IApiResponse
 │       ├── Constants/                 # ErrorCodes
 │       ├── Context/                   # CorrelationContext, ICorrelationIdProvider
-│       └── Options/                   # JwtOptions, OutboxOptions
+│       ├── Options/                   # JwtOptions, OutboxOptions, KafkaOptions
+│       └── Events/                    # TransactionPostedIntegrationEvent
 │
 ├── tests/
-│   ├── PaymentLedger.UnitTests/         # 204 tests: Invariants, business edge cases, concurrency, Redis resilience, Outbox pattern & idempotency
+│   ├── PaymentLedger.UnitTests/         # 216 tests: Invariants, business edge cases, concurrency, Redis resilience, Outbox pattern & Kafka publisher
 │   ├── PaymentLedger.ArchitectureTests/ # 7 tests: NetArchTest enforcing strict layer boundaries
 │   └── PaymentLedger.IntegrationTests/  # 9 tests: Real PostgreSQL Testcontainers integration & concurrency tests
 │
@@ -486,9 +487,10 @@ dotnet test PaymentLedgerService.sln
 ```
 
 ### 12.1 Unit Tests
-**204 tests** (fast, in-memory execution):
+**216 tests** (fast, in-memory execution):
 - Domain model invariants, money precision, wallet status state machine, and ledger double-entry balancing.
 - Business service orchestration (`UserBusinessService`, `WalletBusinessService`, `TransactionBusinessService`).
+- Transactional outbox dispatching and Apache Kafka integration event publishing (`KafkaIntegrationEventPublisher`).
 - Distributed idempotency engine verification: SHA-256 fingerprinting, replay of cached transactions, post-lock recheck verification, Redis fail-safe fault tolerance, and multi-threaded anti-double-click guard testing.
 - Refund lifecycle, over-refund guardrails, and transaction reference linking.
 - Controller endpoints and exception-to-response mapping.

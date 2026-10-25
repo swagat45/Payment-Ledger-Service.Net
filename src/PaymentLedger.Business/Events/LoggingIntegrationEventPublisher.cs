@@ -1,31 +1,36 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace PaymentLedger.Business.Events;
 
+/// <summary>
+/// Integration event publisher that streams outbox messages directly to the message broker.
+/// Replaces the earlier simulation with real Apache Kafka / broker publishing.
+/// </summary>
 public sealed class LoggingIntegrationEventPublisher : IIntegrationEventPublisher
 {
+    private readonly KafkaIntegrationEventPublisher _kafkaPublisher;
     private readonly ILogger<LoggingIntegrationEventPublisher> _logger;
 
-    public LoggingIntegrationEventPublisher(ILogger<LoggingIntegrationEventPublisher> logger)
+    public LoggingIntegrationEventPublisher(
+        KafkaIntegrationEventPublisher kafkaPublisher,
+        ILogger<LoggingIntegrationEventPublisher> logger)
     {
+        _kafkaPublisher = kafkaPublisher;
         _logger = logger;
     }
 
-    public Task PublishAsync(Guid messageId, string eventType, string payload, DateTimeOffset occurredOnUtc, CancellationToken ct = default)
+    public async Task PublishAsync(
+        Guid messageId,
+        string eventType,
+        string payload,
+        DateTimeOffset occurredOnUtc,
+        CancellationToken ct = default)
     {
-        // Deserialize payload to validate JSON structure and enable structured representation
-        using var jsonDoc = JsonDocument.Parse(payload);
-        var rawJson = jsonDoc.RootElement.GetRawText();
-
         _logger.LogInformation(
-            "[Broker Simulated] Published message to Kafka topic 'payment-ledger.{EventType}' (RabbitMQ exchange 'payment-ledger.events', routingKey '{EventType}') | MessageId={MessageId} | OccurredOn={OccurredOnUtc} | Payload={Payload}",
+            "Streaming outbox event '{EventType}' (MessageId: {MessageId}) to broker...",
             eventType,
-            eventType,
-            messageId,
-            occurredOnUtc,
-            rawJson);
+            messageId);
 
-        return Task.CompletedTask;
+        await _kafkaPublisher.PublishAsync(messageId, eventType, payload, occurredOnUtc, ct);
     }
 }

@@ -15,7 +15,19 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
         services.AddScoped<IEventPublisher, EventPublisher>();
-        services.AddSingleton<IIntegrationEventPublisher, LoggingIntegrationEventPublisher>();
+        
+        services.AddSingleton<KafkaIntegrationEventPublisher>();
+        services.AddSingleton<LoggingIntegrationEventPublisher>();
+        services.AddSingleton<IIntegrationEventPublisher>(sp =>
+        {
+            var kafkaOptions = sp.GetService<Microsoft.Extensions.Options.IOptions<PaymentLedger.Shared.Options.KafkaOptions>>()?.Value;
+            if (kafkaOptions?.Enabled == true)
+            {
+                return sp.GetRequiredService<KafkaIntegrationEventPublisher>();
+            }
+            return sp.GetRequiredService<LoggingIntegrationEventPublisher>();
+        });
+
         services.AddScoped<IOutboxDispatcher, OutboxDispatcherService>();
         
         services.AddScoped<UserBusinessService>();

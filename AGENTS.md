@@ -32,7 +32,8 @@ PaymentLedgerService/
 │   │   └── Program.cs                 # App bootstrap, Serilog config, pipeline configuration
 │   │
 │   ├── PaymentLedger.Business/         # Core Domain Logic, Validations, Financial Orchestration
-│   │   ├── Services/                  # UserBusinessService, WalletBusinessService, TransactionBusinessService
+│   │   ├── Services/                  # UserBusinessService, WalletBusinessService, TransactionBusinessService, OutboxDispatcherService
+│   │   ├── Events/                    # DomainEvents, EventPublisher, KafkaIntegrationEventPublisher, LoggingIntegrationEventPublisher
 │   │   ├── Models/                    # Consolidated Per-API Models (UserModels.cs, WalletModels.cs, TransactionModels.cs)
 │   │   ├── Common/                    # IdempotencyService, SystemDateTimeProvider
 │   │   ├── Exceptions/                # ValidationException, ExceptionToResponseMapper
@@ -49,12 +50,14 @@ PaymentLedgerService/
 │   │   └── DependencyInjection.cs     # AddRepository() DI extension
 │   │
 │   └── PaymentLedger.Shared/           # Cross-Cutting Contracts (Independent of all other solution projects)
+│       ├── Events/                    # TransactionPostedIntegrationEvent
+│       ├── Options/                   # OutboxOptions, KafkaOptions
 │       ├── Responses/                 # ApiResponse<T>, ErrorResponse, PagedResponse<T>, IApiResponse
 │       ├── Constants/                 # ErrorCodes
 │       └── Context/                   # CorrelationContext, ICorrelationIdProvider
 │
 ├── tests/
-│   ├── PaymentLedger.UnitTests/         # 204 tests: Unit, domain invariants, business edge cases, concurrency simulations
+│   ├── PaymentLedger.UnitTests/         # 216 tests: Unit, domain invariants, business edge cases, concurrency simulations, Kafka publisher
 │   ├── PaymentLedger.ArchitectureTests/ # 7 tests: NetArchTest enforcing strict layer boundaries
 │   └── PaymentLedger.IntegrationTests/  # 9 tests: Real PostgreSQL Testcontainers integration & concurrency tests
 │
@@ -148,7 +151,7 @@ dotnet test PaymentLedgerService.sln
 ### 4.1 Running Individual Test Projects
 
 ```powershell
-# Unit & Domain Tests (204 tests - fast, in-memory)
+# Unit & Domain Tests (216 tests - fast, in-memory)
 dotnet test tests/PaymentLedger.UnitTests/PaymentLedger.UnitTests.csproj
 
 # Architecture Boundary Tests (7 tests - NetArchTest)

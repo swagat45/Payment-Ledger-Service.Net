@@ -105,6 +105,9 @@ Endpoints:
 - **Swagger UI**: `http://localhost:8080/swagger`
 - **Health Check**: `http://localhost:8080/health`
 - **Angular UI**: `http://localhost:4200`
+- **Kafka Web UI**: `http://localhost:8085`
+- **Kafka Broker (Host PLAINTEXT)**: `localhost:9092`
+- **RabbitMQ (Optional - `--profile rabbitmq`)**: AMQP `localhost:5672`, Management UI `http://localhost:15672`
 
 #### Option B: Local .NET Run (Backend Only)
 Requires PostgreSQL running locally (configure connection in `src/PaymentLedger.Api/appsettings.Development.json`):

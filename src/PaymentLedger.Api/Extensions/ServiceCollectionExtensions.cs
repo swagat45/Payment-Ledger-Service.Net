@@ -97,6 +97,9 @@ public static class ServiceCollectionExtensions
                     context.User.IsInRole(SecurityConstants.Roles.Admin)));
         });
 
+        // Kafka Configuration Options
+        services.Configure<KafkaOptions>(configuration.GetSection(KafkaOptions.SectionName));
+
         // Outbox Configuration & Hosted Worker
         services.Configure<OutboxOptions>(configuration.GetSection(OutboxOptions.SectionName));
         services.AddHostedService<OutboxProcessorBackgroundService>();

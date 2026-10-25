@@ -245,7 +245,8 @@ public class TransactionBusinessService : ITransactionBusinessService, ITransact
                 Amount: refundTxn.Amount,
                 Currency: refundTxn.Currency,
                 Description: refundTxn.Description,
-                OccurredOnUtc: now), ct);
+                OccurredOnUtc: now,
+                ReferenceId: originalTxn.TransactionCode), ct);
 
             // 10. Commit transaction
             await _unitOfWork.SaveChangesAsync(ct);

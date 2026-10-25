@@ -20,7 +20,9 @@ public sealed record TransactionPostedEvent(
     decimal Amount,
     string Currency,
     string? Description,
-    DateTimeOffset OccurredOnUtc) : IDomainEvent;
+    DateTimeOffset OccurredOnUtc,
+    string? ReferenceId = null,
+    string Status = "Posted") : IDomainEvent;
 
 public sealed record WalletStatusChangedEvent(
     Guid WalletId,

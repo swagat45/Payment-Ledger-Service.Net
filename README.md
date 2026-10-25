@@ -290,7 +290,7 @@ PaymentLedgerService/
 
 ### Option A: Docker Compose (Full-Stack - Recommended)
 
-Runs PostgreSQL 17, Redis 7, Web API (port 8080), and Angular UI (port 4200):
+Runs PostgreSQL 17, Redis 7, Apache Kafka (KRaft), Kafka UI, Web API (port 8080), and Angular UI (port 4200):
 
 ```powershell
 # Build and launch all services in background
@@ -311,6 +311,9 @@ Endpoints:
 - **Web API**: `http://localhost:8080`
 - **Swagger UI**: `http://localhost:8080/swagger`
 - **Health Check**: `http://localhost:8080/health`
+- **Kafka Web UI**: `http://localhost:8085`
+- **Kafka Broker (Host PLAINTEXT)**: `localhost:9092`
+- **RabbitMQ (Optional - via `--profile rabbitmq`)**: AMQP `localhost:5672`, Management UI `http://localhost:15672`
 
 ---
 

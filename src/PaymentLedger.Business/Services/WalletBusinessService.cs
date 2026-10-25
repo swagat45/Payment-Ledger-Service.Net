@@ -357,7 +357,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
                 Amount: transaction.Amount,
                 Currency: transaction.Currency,
                 Description: transaction.Description,
-                OccurredOnUtc: now), ct);
+                OccurredOnUtc: now,
+                ReferenceId: request.ReferenceId), ct);
 
             // 9. Commit atomic transaction
             await _unitOfWork.SaveChangesAsync(ct);
@@ -535,7 +536,8 @@ public class WalletBusinessService : IWalletBusiness, IWalletBusinessService
                 Amount: transaction.Amount,
                 Currency: transaction.Currency,
                 Description: transaction.Description,
-                OccurredOnUtc: now), ct);
+                OccurredOnUtc: now,
+                ReferenceId: request.ReferenceId), ct);
 
             // 9. Commit atomic transaction
             await _unitOfWork.SaveChangesAsync(ct);
